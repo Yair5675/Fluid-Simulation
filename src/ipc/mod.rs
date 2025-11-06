@@ -28,3 +28,10 @@ pub trait SimulationGrid<'a, T> {
     /// An immutable reference to the grid value at coordinates (`x`, `y`).
     fn get_value_at(&self, x: usize, y: usize) -> &'a T;
 }
+
+/// Represents the different types of simulation data which can be sent from the backend to the
+/// frontend.
+pub enum SimulationData<'a> {
+    /// A grid of pressure values.
+    Pressure(Box<dyn SimulationGrid<'a, f64> + 'a>),
+}
