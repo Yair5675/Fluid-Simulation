@@ -3,6 +3,8 @@
 //!
 //! This isn't technically an IPC since both run on the same process, but represents the same idea.
 
+use std::sync::Arc;
+
 /// Represents a grid of computed values which should be passed from the backend to the frontend.
 /// The grid must be passable between threads to allow the simulation to run in a separate thread
 /// from the UI.
@@ -35,5 +37,5 @@ pub trait SimulationGrid<'a, T>: Send + Sync {
 /// frontend.
 pub enum SimulationData<'a> {
     /// A grid of pressure values.
-    Pressure(Box<dyn SimulationGrid<'a, f64> + 'a>),
+    Pressure(Arc<dyn SimulationGrid<'a, f64> + 'a>),
 }
