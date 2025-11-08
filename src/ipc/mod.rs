@@ -4,13 +4,15 @@
 //! This isn't technically an IPC since both run on the same process, but represents the same idea.
 
 /// Represents a grid of computed values which should be passed from the backend to the frontend.
+/// The grid must be passable between threads to allow the simulation to run in a separate thread
+/// from the UI.
 ///
 /// The implementation is not defined as a struct to allow flexible refactoring of the values'
 /// container if such need is encountered (for performance reasons for example).
 ///
 /// Note that this trait is meant to be a read-only protocol, aimed to be sent from backend to
 /// frontend.
-pub trait SimulationGrid<'a, T> {
+pub trait SimulationGrid<'a, T>: Send + Sync {
     /// Returns the dimensions of the grid (its length in the horizontal and vertical dimensions).
     ///
     /// # Return value
