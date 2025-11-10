@@ -1,6 +1,9 @@
 //! A module defining grids in the fluid simulation - holding data in a 2-dimensional data
 //! structure.
 
+mod one_dimensional;
+
+pub use one_dimensional::OneDimensionalGrid; // Expose to users and save the headache of the one_dimensional mod
 
 /// Flexible trait for different grids in the simulation's backend.
 pub trait Grid {
@@ -30,4 +33,3 @@ pub trait Grid {
     /// point to outside the grid.
     fn set(&mut self, x: usize, y: usize, new_value: Self::GridValue) -> Option<()>;
 }
-
