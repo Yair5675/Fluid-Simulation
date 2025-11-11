@@ -8,3 +8,9 @@ pub struct Velocity {
     x: f64,
     y: f64,
 }
+
+impl Default for Velocity {
+    fn default() -> Self {
+        Velocity { x: 0.0, y: 0.0 }
+    }
+}
