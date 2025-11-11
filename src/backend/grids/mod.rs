@@ -2,8 +2,13 @@
 //! structure.
 
 mod one_dimensional;
+mod staggered;
 
-pub use one_dimensional::OneDimensionalGrid; // Expose to users and save the headache of the one_dimensional mod
+// Expose grids directly to save users headache:
+#[allow(unused_imports)]
+pub use one_dimensional::OneDimensionalGrid;
+#[allow(unused_imports)]
+pub use staggered::StaggeredVelocityField;
 
 /// Flexible trait for different grids in the simulation's backend.
 pub trait Grid {
