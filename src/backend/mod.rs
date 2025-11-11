@@ -1,6 +1,7 @@
 //! Handles all logic of the fluid simulation including physics, simulation configuration, etc...
 
 mod grids;
+pub mod data_types;
 
 use std::time::Duration;
 use anyhow::Result;
