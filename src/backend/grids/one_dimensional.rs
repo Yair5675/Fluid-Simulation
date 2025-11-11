@@ -9,7 +9,7 @@ pub struct OneDimensionalGrid<T> {
     flat_grid: Vec<T>,
 }
 
-impl<T> OneDimensionalGrid<T> {
+impl <D: Default> OneDimensionalGrid<D> {
     /// Creates a new one-dimensional grid for any type which implements the `Default` trait.
     ///
     /// # Arguments:
@@ -22,7 +22,7 @@ impl<T> OneDimensionalGrid<T> {
     /// # Return Value:
     /// A `OneDimensionalGrid` whose values are initialized using the `Default` implementation of
     /// the type argument `D`
-    pub fn new<D: Default>(width: usize, height: usize) -> OneDimensionalGrid<D> {
+    pub fn new(width: usize, height: usize) -> OneDimensionalGrid<D> {
         let flat_grid: Vec<D> = (0..width * height)
             .into_iter()
             .map(|_| Default::default())
@@ -33,7 +33,9 @@ impl<T> OneDimensionalGrid<T> {
             flat_grid,
         }
     }
+}
 
+impl<T> OneDimensionalGrid<T> {
     /// Maps the natural two-dimensional coordinates in a grid to a one-dimensional index which
     /// refers to the equivalent position in the flat grid.
     fn calculate_flat_index(&self, x: usize, y: usize) -> usize {
