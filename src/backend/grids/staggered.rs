@@ -1,10 +1,8 @@
 //! Module defining a special kind of grid which hold velocities at the EDGES of each cell - the staggered
 //! grid.
 
-use crate::backend::grids::OneDimensionalGrid;
 use crate::backend::data_types::Velocity;
-
-
+use crate::backend::grids::OneDimensionalGrid;
 
 /// A special type of grid which holds velocity values at the center of each cell's edges.
 pub struct StaggeredVelocityField {
@@ -15,11 +13,11 @@ pub struct StaggeredVelocityField {
 impl StaggeredVelocityField {
     /// Creates a new `StaggeredVelocityField` where all of the stored velocity vectors are set to
     /// `[ 0.0, 0.0 ]`.
-    /// 
+    ///
     /// # Arguments:
     /// * `width` - The horizontal length of the grid.
     /// * `height` - The vertical length of the grid.
-    /// 
+    ///
     /// # Return Value:
     /// A staggered velocity field whose velocities are `[ 0.0, 0.0 ]`.
     pub fn new(width: usize, height: usize) -> Self {

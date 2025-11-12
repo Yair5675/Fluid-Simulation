@@ -9,7 +9,7 @@ pub struct OneDimensionalGrid<T> {
     flat_grid: Vec<T>,
 }
 
-impl <D: Default> OneDimensionalGrid<D> {
+impl<D: Default> OneDimensionalGrid<D> {
     /// Creates a new one-dimensional grid for any type which implements the `Default` trait.
     ///
     /// # Arguments:

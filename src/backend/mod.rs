@@ -1,11 +1,11 @@
 //! Handles all logic of the fluid simulation including physics, simulation configuration, etc...
 
-mod grids;
 pub mod data_types;
+mod grids;
 
-use std::time::Duration;
-use anyhow::Result;
 use crate::ipc::SimulationData;
+use anyhow::Result;
+use std::time::Duration;
 
 /// A trait that exposes the API of the fluid simulation while abstracting the complex logic
 /// and physics.

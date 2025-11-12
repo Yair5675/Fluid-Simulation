@@ -22,11 +22,12 @@ pub fn frontend_component(config: &configuration::FrontendConfiguration) -> Html
 ///
 /// # Return value
 /// A frontend based on the given configuration.
-fn get_frontend_from_config(_config: &configuration::FrontendConfiguration) -> Box<dyn FluidSimulationFrontend> {
+fn get_frontend_from_config(
+    _config: &configuration::FrontendConfiguration,
+) -> Box<dyn FluidSimulationFrontend> {
     // TODO: Replace with an actual implementation of factory-like creation
     Box::new(PocFrontend {})
 }
-
 
 /// Trait that abstracts different frontends and allows the program to create completely different
 /// GUIs.
@@ -36,7 +37,6 @@ fn get_frontend_from_config(_config: &configuration::FrontendConfiguration) -> B
 trait FluidSimulationFrontend {
     fn get_html(&self) -> Html;
 }
-
 
 struct PocFrontend {}
 
@@ -48,5 +48,4 @@ impl FluidSimulationFrontend for PocFrontend {
             </div>
         }
     }
-
 }
