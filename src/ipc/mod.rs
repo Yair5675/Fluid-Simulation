@@ -6,15 +6,16 @@
 use std::sync::Arc;
 
 /// Represents a grid of computed values which should be passed from the backend to the frontend.
-/// The grid must be passable between threads to allow the simulation to run in a separate thread
-/// from the UI.
 ///
 /// The implementation is not defined as a struct to allow flexible refactoring of the values'
 /// container if such need is encountered (for performance reasons for example).
 ///
 /// Note that this trait is meant to be a read-only protocol, aimed to be sent from backend to
 /// frontend.
-pub trait SimulationGrid<'a, T>: Send + Sync {
+pub trait SimulationGrid {
+    /// The specific kind of data the simulation grid holds.
+    type Data;
+
     /// Returns the dimensions of the grid (its length in the horizontal and vertical dimensions).
     ///
     /// # Return value
@@ -30,12 +31,12 @@ pub trait SimulationGrid<'a, T>: Send + Sync {
     ///
     /// # Return value
     /// An immutable reference to the grid value at coordinates (`x`, `y`).
-    fn get_value_at(&self, x: usize, y: usize) -> &'a T;
+    fn get_value_at(&self, x: usize, y: usize) -> &Self::Data;
 }
 
 /// Represents the different types of simulation data which can be sent from the backend to the
 /// frontend.
-pub enum SimulationData<'a> {
+pub enum SimulationData {
     /// A grid of pressure values.
-    Pressure(Arc<dyn SimulationGrid<'a, f64> + 'a>),
+    Pressure(Arc<dyn SimulationGrid<Data = f64>>),
 }
