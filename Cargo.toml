@@ -6,3 +6,4 @@ edition = "2024"
 [dependencies]
 yew = { version = "0.21.0", features = ["csr"] }
 anyhow = "1.0.100"
+vector2d = "3.1.1"

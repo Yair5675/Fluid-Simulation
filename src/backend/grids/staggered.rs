@@ -1,13 +1,13 @@
 //! Module defining a special kind of grid which hold velocities at the EDGES of each cell - the staggered
 //! grid.
 
-use crate::backend::data_types::Velocity;
+use vector2d::Vector2D;
 use crate::backend::grids::OneDimensionalGrid;
 
 /// A special type of grid which holds velocity values at the center of each cell's edges.
 pub struct StaggeredVelocityField {
     /// The actual data-structure storing the staggered velocities
-    raw_grid: OneDimensionalGrid<Velocity>, // Implementation detail - OneDimensionalGrid used (any Grid will do).
+    raw_grid: OneDimensionalGrid<Vector2D<f64>>, // Implementation detail - OneDimensionalGrid used (any Grid will do).
 }
 
 impl StaggeredVelocityField {
