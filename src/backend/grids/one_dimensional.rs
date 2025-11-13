@@ -43,12 +43,12 @@ impl<T> OneDimensionalGrid<T> {
     }
 
     /// The horizontal length of the grid.
-    fn width(&self) -> usize {
+    pub fn width(&self) -> usize {
         self.width
     }
 
     /// The vertical length of the grid.
-    fn height(&self) -> usize {
+    pub fn height(&self) -> usize {
         self.height
     }
 }
