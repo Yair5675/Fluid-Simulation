@@ -1,6 +1,7 @@
 //! Handles all logic of the fluid simulation including physics, simulation configuration, etc...
 
 pub mod configuration;
+pub mod grid;
 mod grids;
 
 use crate::ipc::SimulationData;
