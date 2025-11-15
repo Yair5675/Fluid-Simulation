@@ -8,6 +8,8 @@ use crate::backend::grid::Grid;
 /// Represents the different types of simulation data which can be sent from the backend to the
 /// frontend.
 pub enum SimulationData {
+    /// No data is available.
+    Loading,
     /// A grid of pressure values.
     Pressure(Grid<f64>),
 }
