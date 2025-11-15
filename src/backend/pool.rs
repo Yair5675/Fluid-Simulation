@@ -1,6 +1,48 @@
-use std::sync::mpsc::{channel, sync_channel, Receiver, TryRecvError};
+use std::{ops::{Deref, DerefMut}, sync::mpsc::{Receiver, TryRecvError, channel, sync_channel}};
 
 use crate::backend::generic_sender::GenericSender;
+
+/// A RAII guard that automatically sends the value it holds back to the pool that
+/// held it.
+pub struct Fish<T: Send>(Option<T>, GenericSender<T>);
+
+impl <T: Send> Fish<T> {
+    pub fn new(value: T, pool_sender: GenericSender<T>) -> Self {
+        Self(Some(value), pool_sender)
+    }
+
+    /// Consumes the `Fish` wrapper and returns the value held inside it.
+    /// 
+    /// This effectively releases the value from the pool and allows its memory to
+    /// be freed without returning to the pool.
+    pub fn into_inner(mut self) -> T {
+        self.0.take().expect("Usage of a Fish after it was dropped")
+    }
+}
+
+impl <T: Send> Deref for Fish<T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        self.0.as_ref().expect("Usage of a Fish after it was dropped")
+    }
+}
+
+impl <T: Send> DerefMut for Fish<T> {    
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.0.as_mut().expect("Usage of a Fish after it was dropped")
+    }
+}
+
+impl <T: Send> Drop for Fish<T> {
+    fn drop(&mut self) {
+        if let Some(value) = self.0.take() {
+            let _ = self.1.send(value);
+        }
+        // If the value was None the fish was somehow dropped before already...
+        // VERY weird but not crucial here.
+    }
+}
 
 /// A pool of reusable objects. Useful to save memory if the value is very large.
 pub struct Pool<T: Send> {
