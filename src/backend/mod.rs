@@ -2,6 +2,7 @@
 
 pub mod configuration;
 pub mod grid;
+pub mod pool;
 
 use crate::ipc::SimulationData;
 use anyhow::Result;
