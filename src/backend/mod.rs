@@ -2,6 +2,7 @@
 
 pub mod configuration;
 pub mod engine;
+pub mod generic_sender;
 pub mod grid;
 pub mod pool;
 

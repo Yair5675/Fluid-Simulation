@@ -1,75 +1,11 @@
-use std::sync::mpsc::{
-    channel, sync_channel, Receiver, SendError, Sender, SyncSender, TryRecvError, TrySendError,
-};
+use std::sync::mpsc::{channel, sync_channel, Receiver, TryRecvError};
 
-/// The transmittor to the pool. Abstracts over asynchronous and synchronous senders.
-#[derive(Debug)]
-pub enum PoolSender<T: Send> {
-    Async(Sender<T>),
-    Sync(SyncSender<T>),
-}
-
-impl<T: Send> Clone for PoolSender<T> {
-    fn clone(&self) -> Self {
-        match self {
-            PoolSender::Async(sender) => PoolSender::Async(sender.clone()),
-            PoolSender::Sync(sync_sender) => PoolSender::Sync(sync_sender.clone()),
-        }
-    }
-}
-
-impl<T: Send> PoolSender<T> {
-    /// Sends the given value to the designated receiver.
-    ///
-    /// The behavior of the function depends on the underlying implementation:
-    /// * For the `Async` variant, the function will return immediately, even if the
-    ///   value could not be sent because the receiver disconnected.
-    /// * For the `Sync` variant, the function will block until either enough space in
-    ///   the receiver will be available, or the receiver disconnected (in which case
-    ///   an error will be returned).
-    ///
-    /// If you wish to consistently send data asynchronously, see [`PoolSender::send_async`].
-    ///
-    /// # Arguments:
-    /// * `value` - The value sent through the channel to some receiver.
-    ///
-    /// # Return Value:
-    /// A unit type of the value was sent successfully, otherwise a [`SendError`] containing
-    /// `value`.
-    pub fn send(&self, value: T) -> Result<(), SendError<T>> {
-        match self {
-            PoolSender::Async(sender) => sender.send(value),
-            PoolSender::Sync(sync_sender) => sync_sender.send(value),
-        }
-    }
-
-    /// Sends the given value without blocking (asynchronously).
-    ///
-    /// This is the normal behavior for the `Async` variant, but for the `Sync` variant
-    /// [`SyncSender::try_send`] is called.
-    /// To abstract over the two senders, the error type is [`TrySendError`], as the `Async`
-    /// variant's only possible error is caused due to receiver disconnection (which is a variant)
-    /// of `TrySendError`.
-    /// # Arguments:
-    /// * `value` - The value sent through the channel to some receiver.
-    ///
-    /// # Return Value:
-    /// A unit type of the value was sent successfully, otherwise a `TrySendError` containing
-    /// `value`.
-    pub fn send_async(&self, value: T) -> Result<(), TrySendError<T>> {
-        match self {
-            PoolSender::Async(sender) => sender
-                .send(value)
-                .map_err(|async_send_err| TrySendError::Disconnected(async_send_err.0)),
-            PoolSender::Sync(sync_sender) => sync_sender.try_send(value),
-        }
-    }
-}
+use crate::backend::generic_sender::GenericSender;
 
 /// A pool of reusable objects. Useful to save memory if the value is very large.
 pub struct Pool<T: Send> {
     available_fish: Receiver<T>,
-    fish_entry: PoolSender<T>,
+    fish_entry: GenericSender<T>,
 }
 
 impl<T: Send> Pool<T> {
@@ -87,7 +23,7 @@ impl<T: Send> Pool<T> {
         let (sender, receiver) = sync_channel(max_fish);
         Self {
             available_fish: receiver,
-            fish_entry: PoolSender::Sync(sender),
+            fish_entry: GenericSender::Sync(sender),
         }
     }
 
@@ -99,7 +35,7 @@ impl<T: Send> Pool<T> {
         let (sender, receiver) = channel();
         Self {
             available_fish: receiver,
-            fish_entry: PoolSender::Async(sender),
+            fish_entry: GenericSender::Async(sender),
         }
     }
 
@@ -116,12 +52,12 @@ impl<T: Send> Pool<T> {
 
     /// Attempts to retrieve a value from the pool. This function never blocks, and if
     /// no fish is available it just returns `None`.
-    /// 
+    ///
     /// # Return Value:
     /// If one is available, the function gives the caller ownership of a new, magnificent, mesmerising
     /// ![fish](https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSJa8Uri9F5Mv8Em1wSMl8bTO9_ucqruFHbiA&s) from the
     /// pool (wrapped in `Some`).
-    /// 
+    ///
     /// If one isn't available, `None` is returned.
     pub fn try_get_fish(&self) -> Option<T> {
         match self.available_fish.try_recv() {
@@ -142,7 +78,7 @@ impl<T: Send> Pool<T> {
     /// ![](https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRQgewMwfqyqrWsb-77rHHFEt6ApfYul31ERw&s)
     /// # Return Value:
     /// A `PoolSender` through which values can be passed to the pool.
-    pub fn get_fish_sender(&self) -> PoolSender<T> {
+    pub fn get_fish_sender(&self) -> GenericSender<T> {
         self.fish_entry.clone()
     }
 }
