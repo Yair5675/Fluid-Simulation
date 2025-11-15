@@ -13,3 +13,9 @@ pub enum SimulationData {
     /// A grid of pressure values.
     Pressure(Grid<f64>),
 }
+
+impl Default for SimulationData {
+    fn default() -> Self {
+        Self::Loading
+    }
+}
