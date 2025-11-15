@@ -5,6 +5,7 @@ pub mod engine;
 pub mod generic_sender;
 pub mod grid;
 pub mod pool;
+pub mod processor;
 
 use crate::ipc::SimulationData;
 use anyhow::Result;
