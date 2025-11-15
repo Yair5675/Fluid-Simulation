@@ -1,5 +1,10 @@
 //! Handles all logic of the fluid simulation including physics, simulation configuration, etc...
 
+use std::sync::{Arc, RwLock, atomic::AtomicBool};
+
+use self::configuration::BackendConfiguration;
+use crate::ipc::SimulationData;
+
 pub mod configuration;
 pub mod engine;
 pub mod generic_sender;
@@ -7,26 +12,26 @@ pub mod grid;
 pub mod pool;
 pub mod processor;
 
-use crate::ipc::SimulationData;
-use anyhow::Result;
-use std::time::Duration;
+/// A struct encapsulating the entire simulation's backend. Offers an API to the frontend
+/// while simultaneously handling all components of the backend computation chain.
+pub struct FluidSimulationBackend {
+    is_running: AtomicBool,
+    currently_rendering_data: RwLock<Arc<SimulationData>>,
+}
 
-/// A trait that exposes the API of the fluid simulation while abstracting the complex logic
-/// and physics.
-pub trait FluidSimulationBackend {
-    /// Updates the simulation's data according to the backend's logic.
-    ///
+impl FluidSimulationBackend {
+    /// Initializes the simulation's backend given its configuration.
+    /// 
     /// # Arguments:
-    /// * `delta_time` - The amount of time that had passed since the last call to
-    ///                  `update_simulation`. Used in the physics equations of the simulation.
-    ///
+    /// * `configuration` - The backend's configuration, allows the caller to change the
+    ///                     backend's behavior.
+    /// 
     /// # Return Value:
-    /// A simple `anyhow::Result` object, indicating whether the update was successful.
-    fn update_simulation(&mut self, delta_time: Duration) -> Result<()>;
-
-    /// Retrieves the computed data from the simulation.
-    ///
-    /// # Return Value:
-    /// A `SimulationData` object, containing the most recent computed values in the backend.
-    fn get_simulation_data(&self) -> SimulationData;
+    /// A new `FluidSimulationBackend`, configured as requested.
+    pub fn new(_configuration: BackendConfiguration) -> Self {
+        Self {
+            is_running: AtomicBool::new(false),
+            currently_rendering_data: RwLock::new(Arc::new(SimulationData::Loading)),
+        }
+    }
 }
