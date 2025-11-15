@@ -1,6 +1,6 @@
 use std::{
     ops::{Deref, DerefMut},
-    sync::mpsc::{channel, sync_channel, Receiver, TryRecvError},
+    sync::mpsc::{Receiver, TryRecvError, channel, sync_channel},
 };
 
 use crate::backend::generic_sender::GenericSender;

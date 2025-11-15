@@ -37,7 +37,7 @@ impl<D: Default> Grid<D> {
     }
 }
 
-impl <T> Grid<T> {
+impl<T> Grid<T> {
     /// Maps the natural two-dimensional coordinates in a grid to a one-dimensional index which
     /// refers to the equivalent position in the flat grid.
     fn calculate_flat_index(&self, x: usize, y: usize) -> usize {
