@@ -1,4 +1,7 @@
-use std::{ops::{Deref, DerefMut}, sync::mpsc::{Receiver, TryRecvError, channel, sync_channel}};
+use std::{
+    ops::{Deref, DerefMut},
+    sync::mpsc::{channel, sync_channel, Receiver, TryRecvError},
+};
 
 use crate::backend::generic_sender::GenericSender;
 
@@ -6,13 +9,13 @@ use crate::backend::generic_sender::GenericSender;
 /// held it.
 pub struct Fish<T: Send>(Option<T>, GenericSender<T>);
 
-impl <T: Send> Fish<T> {
+impl<T: Send> Fish<T> {
     pub fn new(value: T, pool_sender: GenericSender<T>) -> Self {
         Self(Some(value), pool_sender)
     }
 
     /// Consumes the `Fish` wrapper and returns the value held inside it.
-    /// 
+    ///
     /// This effectively releases the value from the pool and allows its memory to
     /// be freed without returning to the pool.
     pub fn into_inner(mut self) -> T {
@@ -20,21 +23,25 @@ impl <T: Send> Fish<T> {
     }
 }
 
-impl <T: Send> Deref for Fish<T> {
+impl<T: Send> Deref for Fish<T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
-        self.0.as_ref().expect("Usage of a Fish after it was dropped")
+        self.0
+            .as_ref()
+            .expect("Usage of a Fish after it was dropped")
     }
 }
 
-impl <T: Send> DerefMut for Fish<T> {    
+impl<T: Send> DerefMut for Fish<T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        self.0.as_mut().expect("Usage of a Fish after it was dropped")
+        self.0
+            .as_mut()
+            .expect("Usage of a Fish after it was dropped")
     }
 }
 
-impl <T: Send> Drop for Fish<T> {
+impl<T: Send> Drop for Fish<T> {
     fn drop(&mut self) {
         if let Some(value) = self.0.take() {
             let _ = self.1.send(value);
@@ -86,10 +93,13 @@ impl<T: Send> Pool<T> {
     /// # Return Value:
     /// The ownership of a ![fish](https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSJa8Uri9F5Mv8Em1wSMl8bTO9_ucqruFHbiA&s)
     /// from the pool.
-    pub fn get_fish_blocking(&self) -> T {
-        self.available_fish
-            .recv()
-            .expect("All senders disconnected even though one is saved in the pool itself")
+    pub fn get_fish_blocking(&self) -> Fish<T> {
+        Fish::new(
+            self.available_fish
+                .recv()
+                .expect("All senders disconnected even though one is saved in the pool itself"),
+            self.get_fish_sender(),
+        )
     }
 
     /// Attempts to retrieve a value from the pool. This function never blocks, and if
@@ -101,9 +111,9 @@ impl<T: Send> Pool<T> {
     /// pool (wrapped in `Some`).
     ///
     /// If one isn't available, `None` is returned.
-    pub fn try_get_fish(&self) -> Option<T> {
+    pub fn try_get_fish(&self) -> Option<Fish<T>> {
         match self.available_fish.try_recv() {
-            Ok(fish) => Some(fish),
+            Ok(fish) => Some(Fish::new(fish, self.get_fish_sender())),
             Err(TryRecvError::Empty) => None,
             Err(TryRecvError::Disconnected) => {
                 panic!("All senders disconnected even though one is saved in the pool itself")

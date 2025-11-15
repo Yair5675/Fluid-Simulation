@@ -3,7 +3,7 @@
 
 use std::{cell::OnceCell, sync::{Arc, mpsc::Sender}, time::Duration};
 
-use crate::backend::pool::Pool;
+use crate::backend::pool::{Fish, Pool};
 
 /// The final output of the [`SimulationEngine`] struct when it computes a single
 /// simulation timestep.
@@ -60,15 +60,15 @@ impl SimulationEngine {
     ///                     the case it can't.
     /// 
     /// # Return Value:
-    /// A new owned `EngineOutput` object. If `wait_for_pool` is `true`, it is guaranteed that no
+    /// A new `EngineOutput` object wrapped in a fish. If `wait_for_pool` is `true`, it is guaranteed that no
     /// memory allocations will be performed (at least in this thread).
-    fn get_engine_output(&self, wait_for_pool: bool) -> EngineOutput {
+    fn get_engine_output(&self, wait_for_pool: bool) -> Fish<EngineOutput> {
         if wait_for_pool {
             self.engine_output_pool.get_fish_blocking()
         } else {
             match self.engine_output_pool.try_get_fish() {
                 Some(fish) => fish,
-                None => EngineOutput::new(),
+                None => Fish::new(EngineOutput::new(), self.engine_output_pool.get_fish_sender()),
             }
         }
     }
@@ -87,7 +87,7 @@ impl SimulationEngine {
     /// # Return Value:
     /// A new timestep in the simulation based on the previous one and the amount of time that passed between
     /// them.
-    pub fn compute_timestep(&self, dt: Duration, prev_timestep: &EngineOutput, wait_for_pool: bool) -> EngineOutput {
+    pub fn compute_timestep(&self, dt: Duration, prev_timestep: &EngineOutput, wait_for_pool: bool) -> Fish<EngineOutput> {
         let mut output = self.get_engine_output(wait_for_pool);
         self.compute_timestep_internal(dt, prev_timestep, &mut output);
         output
