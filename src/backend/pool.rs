@@ -121,6 +121,28 @@ impl<T: Send> Pool<T> {
         }
     }
 
+    /// Attempts to retrieve a value from the pool, creating it if one isn't available. This function
+    /// never blocks, and guarantees that a fish is returned.
+    ///
+    /// # Arguments:
+    /// * `initializer` - A function that can create a new value for the fish to hold (if necessary).
+    ///
+    /// # Return Value:
+    /// If one is available, the function gives the caller ownership of a new, magnificent, mesmerising
+    /// ![fish](https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSJa8Uri9F5Mv8Em1wSMl8bTO9_ucqruFHbiA&s) from the
+    /// pool.
+    ///
+    /// Otherwise, it makes one for you using the given `initializer`.
+    pub fn get_fish_or_init<F>(&self, initializer: F) -> Fish<T>
+    where
+        F: FnOnce() -> T,
+    {
+        self.try_get_fish().unwrap_or_else(|| {
+            let value = initializer();
+            Fish::new(value, self.get_fish_sender())
+        })
+    }
+
     /// Creates a new [`PoolSender`] through which new fish can be sent to the pool, either to populate
     /// it or return a fish that was previously in it.
     ///
