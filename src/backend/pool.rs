@@ -106,7 +106,7 @@ impl<T: Send> Pool<T> {
     /// Retrieves a value from the pool, blocking until at least one is available.
     ///
     /// # Return Value:
-    /// The ownership of a ![](https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSJa8Uri9F5Mv8Em1wSMl8bTO9_ucqruFHbiA&s)
+    /// The ownership of a ![fish](https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSJa8Uri9F5Mv8Em1wSMl8bTO9_ucqruFHbiA&s)
     /// from the pool.
     pub fn get_fish_blocking(&self) -> T {
         self.available_fish
