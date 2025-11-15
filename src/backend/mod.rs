@@ -21,11 +21,11 @@ pub struct FluidSimulationBackend {
 
 impl FluidSimulationBackend {
     /// Initializes the simulation's backend given its configuration.
-    /// 
+    ///
     /// # Arguments:
     /// * `configuration` - The backend's configuration, allows the caller to change the
     ///                     backend's behavior.
-    /// 
+    ///
     /// # Return Value:
     /// A new `FluidSimulationBackend`, configured as requested.
     pub fn new(_configuration: BackendConfiguration) -> Self {

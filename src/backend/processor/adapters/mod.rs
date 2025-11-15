@@ -2,19 +2,16 @@
 
 use serde::Deserialize;
 
-
 /// An adapter-specific configuration, through which the [`AdapterFactory`] enum will be able to construct
 /// the needed adapter while abstracting which one it provided.
 #[derive(Debug, Clone, Copy, Deserialize)]
-pub enum AdapterConfiguration {
-}
+pub enum AdapterConfiguration {}
 
 /// A factory enum whose variants are wrappers for actual implementations of the [`SimulationDataAdapter`]
 /// trait.
-/// 
+///
 /// The factory will use the [`AdapterConfiguration`] given to it to create the matching adapter variant.
-pub enum AdapterFactory {
-}
+pub enum AdapterFactory {}
 
 impl TryFrom<AdapterConfiguration> for AdapterFactory {
     type Error = anyhow::Error;
