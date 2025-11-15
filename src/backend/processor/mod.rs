@@ -1,6 +1,8 @@
 //! A module responsible to process the `engine` module's output, providing a mechanism
 //! that adds information on top of the velocity field computed in the engine.
 
+pub mod adapters;
+
 use std::sync::Arc;
 
 use crate::{
