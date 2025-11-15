@@ -66,10 +66,7 @@ impl SimulationEngine {
         if wait_for_pool {
             self.engine_output_pool.get_fish_blocking()
         } else {
-            match self.engine_output_pool.try_get_fish() {
-                Some(fish) => fish,
-                None => Fish::new(EngineOutput::new(), self.engine_output_pool.get_fish_sender()),
-            }
+            self.engine_output_pool.get_fish_or_init(EngineOutput::new)
         }
     }
 
