@@ -1,5 +1,5 @@
 use std::sync::mpsc::{
-    channel, sync_channel, Receiver, SendError, Sender, SyncSender, TrySendError,
+    channel, sync_channel, Receiver, SendError, Sender, SyncSender, TryRecvError, TrySendError,
 };
 
 /// The transmittor to the pool. Abstracts over asynchronous and synchronous senders.
@@ -114,12 +114,31 @@ impl<T: Send> Pool<T> {
             .expect("All senders disconnected even though one is saved in the pool itself")
     }
 
+    /// Attempts to retrieve a value from the pool. This function never blocks, and if
+    /// no fish is available it just returns `None`.
+    /// 
+    /// # Return Value:
+    /// If one is available, the function gives the caller ownership of a new, magnificent, mesmerising
+    /// ![fish](https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSJa8Uri9F5Mv8Em1wSMl8bTO9_ucqruFHbiA&s) from the
+    /// pool (wrapped in `Some`).
+    /// 
+    /// If one isn't available, `None` is returned.
+    pub fn try_get_fish(&self) -> Option<T> {
+        match self.available_fish.try_recv() {
+            Ok(fish) => Some(fish),
+            Err(TryRecvError::Empty) => None,
+            Err(TryRecvError::Disconnected) => {
+                panic!("All senders disconnected even though one is saved in the pool itself")
+            }
+        }
+    }
+
     /// Creates a new [`PoolSender`] through which new fish can be sent to the pool, either to populate
     /// it or return a fish that was previously in it.
-    /// 
+    ///
     /// Note that if the pool was created with the [`Pool::new_bounded`] function, this function
     /// will block until enough space in the pool is available.
-    /// 
+    ///
     /// ![](https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRQgewMwfqyqrWsb-77rHHFEt6ApfYul31ERw&s)
     /// # Return Value:
     /// A `PoolSender` through which values can be passed to the pool.
