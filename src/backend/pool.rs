@@ -44,10 +44,9 @@ impl<T: Send> DerefMut for Fish<T> {
 impl<T: Send> Drop for Fish<T> {
     fn drop(&mut self) {
         if let Some(value) = self.0.take() {
-            let _ = self.1.send(value);
+            let _ = self.1.send(value); // TODO: Consider logging errors in the future
         }
-        // If the value was None the fish was somehow dropped before already...
-        // VERY weird but not crucial here.
+        // If the value was None the fish was consumed using `into_inner`, which is ok
     }
 }
 
