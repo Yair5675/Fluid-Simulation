@@ -16,6 +16,7 @@ pub mod processor;
 /// while simultaneously handling all components of the backend computation chain.
 pub struct FluidSimulationBackend {
     is_running: AtomicBool,
+    config: BackendConfiguration,
     currently_rendering_data: RwLock<Arc<SimulationData>>,
 }
 
@@ -28,9 +29,10 @@ impl FluidSimulationBackend {
     ///
     /// # Return Value:
     /// A new `FluidSimulationBackend`, configured as requested.
-    pub fn new(_configuration: BackendConfiguration) -> Self {
+    pub fn new(configuration: BackendConfiguration) -> Self {
         Self {
             is_running: AtomicBool::new(false),
+            config: configuration,
             currently_rendering_data: RwLock::new(Arc::new(SimulationData::Loading)),
         }
     }
