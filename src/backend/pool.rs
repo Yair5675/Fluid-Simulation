@@ -1,6 +1,6 @@
 use std::{
     ops::{Deref, DerefMut},
-    sync::mpsc::{Receiver, TryRecvError, channel, sync_channel},
+    sync::mpsc::{channel, sync_channel, Receiver, SendError, TryRecvError, TrySendError},
 };
 
 use crate::backend::generic_sender::GenericSender;
@@ -140,6 +140,32 @@ impl<T: Send> Pool<T> {
             let value = initializer();
             Fish::new(value, self.get_fish_sender())
         })
+    }
+
+    /// Attempts to populate (add a new value) to the pool without blocking. If the value is added successfully,
+    /// every thread with access to this pool will be able to retrieve this value and use it.
+    /// 
+    /// The function never blocks, and if the pool is full, ownership of `value` is returned through the `Err`
+    /// variant of the returned `Result`.
+    /// 
+    /// # Arguments:
+    /// * `value` - The value which will be put into the pool.
+    /// 
+    /// # Return Value:
+    /// An empty `Ok` variant if `value` was successfully inserted into the pool, or an `Err` variant giving
+    /// back ownership of `value` if the pool was full.
+    pub fn try_populate(&self, value: T) -> Result<(), T> {
+        self.fish_entry
+            .send_async(value)
+            .map_err(|error| {
+                // Ensure invariant and unwrap the TrySendError:
+                match error {
+                    TrySendError::Full(value) => value,
+                    TrySendError::Disconnected(_) => panic!(
+                        "All senders disconnected even though one is saved in the pool itself"
+                    ),
+                }
+            })
     }
 
     /// Creates a new [`PoolSender`] through which new fish can be sent to the pool, either to populate
