@@ -48,8 +48,8 @@ impl<T: Send> GenericSender<T> {
     /// This is the normal behavior for the `Async` variant, but for the `Sync` variant
     /// [`SyncSender::try_send`] is called.
     /// To abstract over the two senders, the error type is [`TrySendError`], as the `Async`
-    /// variant's only possible error is caused due to receiver disconnection (which is a variant)
-    /// of `TrySendError`.
+    /// variant's only possible error is caused due to receiver disconnection (which is a variant
+    /// of `TrySendError`).
     /// # Arguments:
     /// * `value` - The value sent through the channel to some receiver.
     ///
