@@ -168,6 +168,21 @@ impl<T: Send> Pool<T> {
             })
     }
 
+    /// Populates (adds a new value to) the pool using `value`. The value is guaranteed to be added to the
+    /// pool successfully, and other threads holding the pool will be able to use it immediately after its
+    /// addition.
+    /// 
+    /// Note that if the pool was constructed using [`Pool::new_bounded`] and is currently full, the function
+    /// will block until space becomes available for the new value to be inserted.
+    /// 
+    /// # Arguments:
+    /// * `value` - The value which will be put into the pool.
+    pub fn populate_blocking(&self, value: T) {
+        self.fish_entry
+            .send(value)
+            .expect("All senders disconnected even though one is saved in the pool itself");
+    }
+
     /// Creates a new [`PoolSender`] through which new fish can be sent to the pool, either to populate
     /// it or return a fish that was previously in it.
     ///
