@@ -61,21 +61,17 @@ pub trait SimulationDataAdapter: TryFrom<SimulationData> + Send {
 ///           room for `SimulationData` objects which are valid for the adapter).
 ///           Due to this reason, **never** hand the same pool to two processors with different adapter
 ///           types.
-pub struct SimulationOutputProcessor<A, I>
-where
-    A: SimulationDataAdapter,
-    I: Fn() -> A,
+pub struct SimulationOutputProcessor<A: SimulationDataAdapter>
 {
     adapters_pool: Arc<Pool<SimulationData>>,
-    adapter_initializer: I,
+    adapter_initializer: Box<dyn Fn() -> A>,
 }
 
-impl<A, I> SimulationOutputProcessor<A, I>
+impl<A> SimulationOutputProcessor<A>
 where
     A: SimulationDataAdapter,
-    I: Fn() -> A,
 {
-    pub fn new(adapters_pool: Arc<Pool<SimulationData>>, initializer: I) -> Self {
+    pub fn new(adapters_pool: Arc<Pool<SimulationData>>, initializer: Box<dyn Fn() -> A>) -> Self {
         Self {
             adapters_pool,
             adapter_initializer: initializer,
@@ -134,15 +130,13 @@ where
     ///
     /// # Type Arguments:
     /// * `NA` - The new adapter type of the processor.
-    /// * `NI` - The new initializer's type.
     ///
     /// # Return Value:
     /// A `SimulationOutputProcessor` whose adapter's type is `NA`, yet uses the same [`Pool`] as the
     /// previous processor.
-    pub fn change_adapter<NA, NI>(self, new_initializer: NI) -> SimulationOutputProcessor<NA, NI>
+    pub fn change_adapter<NA>(self, new_initializer: Box<dyn Fn() -> NA>) -> SimulationOutputProcessor<NA>
     where
         NA: SimulationDataAdapter,
-        NI: Fn() -> NA,
     {
         SimulationOutputProcessor {
             adapters_pool: self.adapters_pool,
