@@ -2,6 +2,8 @@
 
 use serde::Deserialize;
 
+use crate::backend::processor::SimulationDataAdapter;
+
 /// An adapter-specific configuration, through which the [`AdapterFactory`] enum will be able to construct
 /// the needed adapter while abstracting which one it provided.
 #[derive(Debug, Clone, Copy, Deserialize)]
@@ -13,10 +15,20 @@ pub enum AdapterConfiguration {}
 /// The factory will use the [`AdapterConfiguration`] given to it to create the matching adapter variant.
 pub enum AdapterFactory {}
 
-impl TryFrom<AdapterConfiguration> for AdapterFactory {
-    type Error = anyhow::Error;
+impl SimulationDataAdapter for AdapterFactory {
+    type AdapterError = anyhow::Error;
 
-    fn try_from(value: AdapterConfiguration) -> Result<Self, Self::Error> {
-        todo!("Implement actual adapters and create them here!")
+    fn to_simulation_data(
+        self,
+        prev_state: &crate::ipc::SimulationData,
+        engine_output: &crate::backend::engine::EngineOutput,
+    ) -> Result<crate::ipc::SimulationData, Self::AdapterError> {
+        todo!("Delegate call to actual adapters once they are implemented");
+    }
+
+    fn from_simulation_data(
+        simulation_data: crate::ipc::SimulationData
+    ) -> Result<Self, Self::AdapterError> {
+        todo!("Delegate call to actual adapters once they are implemented");
     }
 }
