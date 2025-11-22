@@ -15,15 +15,15 @@ use crate::{
 
 /// A generic adaptor trait that allows the backend to extract different kinds of information
 /// from a single [`EngineOutput`].
-pub trait SimulationDataAdapter: TryFrom<SimulationData> + Send {
+pub trait SimulationDataAdapter: Send {
     type AdapterError;
 
     /// Computes new simulation data based on the given `engine_output` and returns it.
     ///
     /// The function consumes self to avoid allocating more memory every time the adapter is used.
     /// The adapter's memory is passed to the [`SimulationData`] variant it returns, and can be reused
-    /// through the [`TryFrom`] implementation of the adapter, which should succeed only for the
-    /// specific variant it produces.
+    /// through the [`SimulationDataAdapter::from_simulation_data`] implementation of the adapter, which
+    /// should succeed only for the specific variant it produces.
     ///
     /// # Arguments:
     /// * `prev_state` - The previous state of the adapter, represented as a [`SimulationData`] object.
@@ -41,6 +41,26 @@ pub trait SimulationDataAdapter: TryFrom<SimulationData> + Send {
         prev_state: &SimulationData,
         engine_output: &EngineOutput,
     ) -> Result<SimulationData, Self::AdapterError>;
+
+    /// Creates a [`SimulationDataAdapter`] object based on the given `simulation_data` object.
+    /// 
+    /// The function uses the already allocated memory of `simulation_data` for the new `SimulationDataAdapter`
+    /// object to reuse memory where it can.
+    /// 
+    /// Note that the function should only work for the specific variant of [`SimulationData`] returned by the
+    /// [`SimulationDataAdapter::to_simulation_data`] function, to ensure compatible values. If any other variant
+    /// is supplied, an error should be returned instead.
+    /// 
+    /// # Arguments:
+    /// * `simulation_data` - The variant of [`SimulationData`] returned by `Self`'s `to_simulation_data` function.
+    ///                       Will be used to construct the adapter object and save allocations.
+    /// 
+    /// # Return Value:
+    /// A new `SimulationDataAdapter` object containing the same data as the argument passed to it, or an error if
+    /// the conversion failed.
+    fn from_simulation_data(
+        simulation_data: SimulationData
+    ) -> Result<Self, Self::AdapterError> where Self: Sized;
 }
 
 /// A backend component responsible for using [`SimulationDataAdapter`] to process the output of the
@@ -85,7 +105,7 @@ where
     /// to be converted to an adapter, the function will use an initializer to create the adapter.
     fn get_writeable_adapter(&self) -> A {
         while let Some(allocated_data) = self.adapters_pool.try_get_fish().map(Fish::into_inner) {
-            if let Ok(adapter) = A::try_from(allocated_data) {
+            if let Ok(adapter) = A::from_simulation_data(allocated_data) {
                 return adapter;
             }
             // TODO: Consider logging conversion errors here
