@@ -2,6 +2,7 @@
 
 /// A two-dimensional grid holding some kind of data. Should be used to transport data around
 /// the simulation.
+#[derive(Debug)]
 pub struct Grid<T> {
     /// Width of the grid (horizontal length).
     width: usize,
