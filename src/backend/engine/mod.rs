@@ -7,38 +7,59 @@ use std::{
     time::Duration,
 };
 
-use crate::backend::pool::{Fish, Pool};
+use vector2d::Vector2D;
+
+use crate::backend::{grid::Grid, pool::{Fish, Pool}};
 
 /// The final output of the [`SimulationEngine`] struct when it computes a single
 /// simulation timestep.
 ///
 /// It is expected to be an expensive struct to allocate, so only do so when necessary.
 #[derive(Debug)]
-pub struct EngineOutput; // TODO: Declare fields as necessary
+pub struct EngineOutput {
+    pub staggered_velocities: Grid<Vector2D<f64>>,
+} // TODO: Declare fields as necessary
 
 impl EngineOutput {
     /// Initializes a new `EngineOutput` object.
     ///
     /// This operation is considered expensive, and should only be done if the caller
     /// has no access to an already allocated `EngineOutput`.
-    ///
+    /// 
+    /// `EngineOutput` contains a "staggered grid" of velocities, which means it stores
+    /// velocities at the edges of cells instead of at their centers.
+    /// Due to this data type, the width and height used will be the given `width` and 
+    /// `height` arguments, plus 1.
+    /// 
+    /// Users should not bear that in mind when passing arguments, the function will take
+    /// care of it.
+    /// 
+    /// # Arguments:
+    /// * `width` - Number of cells in the horizontal axis of the outputted grid.
+    /// * `height` - Number of cells in the vertical axis of the outputted grid.
+    /// 
     /// # Return Value:
     /// A new `EngineOutput` object.
-    pub fn new() -> Self {
-        // TODO - As the physics computation is implemented, add fields and arguments
-        Self {}
+    pub fn new(width: usize, height: usize) -> Self {
+        let staggered_velocities = Grid::new(width + 1, height + 1);
+        Self { staggered_velocities }
     }
 }
 
 /// The engine that computes the fluid simulation's
 pub struct SimulationEngine {
     engine_output_pool: Arc<Pool<EngineOutput>>,
+    // TODO: Put in some kind of configuration in the final version:
+    grid_width: usize,
+    grid_height: usize,
 }
 
 impl SimulationEngine {
     /// Creates a new simulation engine that employs efficient memory reuse by using the given pool.
     ///
     /// # Arguments:
+    /// * `grid_width` - Number of cells in the horizontal axis of the outputted grid.
+    /// * `grid_height` - Number of cells in the vertical axis of the outputted grid.
     /// * `pool` - A pool of [`EngineOutput`] objects, wrapped in an `Arc` so that other threads
     ///            can populate it as well.
     ///            The pool doesn't have to contain any values when passed to the function. The
@@ -46,8 +67,10 @@ impl SimulationEngine {
     ///
     /// # Return Value:
     /// A new `SimulationEngine` object that attempts to fish from the given pool.
-    pub fn new(pool: Arc<Pool<EngineOutput>>) -> Self {
+    pub fn new(grid_width: usize, grid_height: usize, pool: Arc<Pool<EngineOutput>>) -> Self {
         Self {
+            grid_width,
+            grid_height,
             engine_output_pool: pool,
         }
     }
@@ -72,7 +95,7 @@ impl SimulationEngine {
         if wait_for_pool {
             self.engine_output_pool.get_fish_blocking()
         } else {
-            self.engine_output_pool.get_fish_or_init(EngineOutput::new)
+            self.engine_output_pool.get_fish_or_init(|| EngineOutput::new(self.grid_width, self.grid_height))
         }
     }
 
