@@ -45,6 +45,11 @@ impl<T> Grid<T> {
         y * self.width + x
     }
 
+    /// Turns the flat (true) index in a grid into an (x, y) index pair.
+    const fn unflatten_index(flat_index: usize, grid_width: usize) -> (usize, usize) {
+        (flat_index % grid_width, flat_index / grid_width)
+    }
+
     /// The horizontal length of the grid.
     pub fn width(&self) -> usize {
         self.width
@@ -83,6 +88,41 @@ impl<T> Grid<T> {
         self.flat_grid
             .get_mut(flat_index)
             .map(|grid_value| *grid_value = new_value)
+    }
+
+    /// Applies a function for each cell in the grid, immutably.
+    /// 
+    /// # Arguments:
+    /// * `consumer` - A consuming function that accepts a reference to some cell in the grid, and the
+    ///                cell's coordinates (x, y), and performs some computations with them.
+    pub fn for_each<F>(&self, consumer: F)
+    where 
+        F: Fn(&T, (usize, usize)) -> ()
+    {
+        self.flat_grid
+            .iter()
+            .enumerate()
+            .for_each(|(flat_index, value)| {
+                consumer(value, Self::unflatten_index(flat_index, self.width))
+            });
+    }
+
+    /// Applies a function for each cell in the grid, mutably.
+    /// 
+    /// # Arguments:
+    /// * `consumer` - A consuming function that accepts a mutable reference to some cell in the grid,
+    ///                and the cell's coordinates (x, y), and performs some computations with them.
+    ///                The passed function may change the cell.
+    pub fn for_each_mut<F>(&mut self, consumer: F)
+    where 
+        F: Fn(&mut T, (usize, usize))
+    {
+        self.flat_grid
+            .iter_mut()
+            .enumerate()
+            .for_each(|(flat_index, value)| {
+                consumer(value, Self::unflatten_index(flat_index, self.width))
+            });
     }
 }
 
