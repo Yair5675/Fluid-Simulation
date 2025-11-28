@@ -148,16 +148,16 @@ impl SimulationEngine {
     ///
     /// # Return Value:
     /// A new timestep in the simulation based on the previous one and the amount of time that passed between
-    /// them.
+    /// them. If any error occurred during the computation, it is returned (although it should be pretty unlikely).
     pub fn compute_timestep(
         &self,
         dt: Duration,
         prev_timestep: &EngineOutput,
         wait_for_pool: bool,
-    ) -> Fish<EngineOutput> {
+    ) -> anyhow::Result<Fish<EngineOutput>> {
         let mut output = self.get_engine_output(wait_for_pool);
-        self.compute_timestep_internal(dt, prev_timestep, &mut output);
-        output
+        self.compute_timestep_internal(dt, prev_timestep, &mut output)?;
+        Ok(output)
     }
 
     /// The actual physics of the engine.
@@ -166,7 +166,7 @@ impl SimulationEngine {
         dt: Duration,
         prev_timestep: &EngineOutput,
         output_buffer: &mut EngineOutput,
-    ) {
+    ) -> anyhow::Result<()> {
         todo!("Implement actual physics here!")
     }
 
