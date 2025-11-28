@@ -7,9 +7,9 @@ use std::{
     time::Duration,
 };
 
+use anyhow::anyhow;
 use vector2d::Vector2D;
 
-use crate::backend::{grid::Grid, pool::{Fish, Pool}};
 
 // TODO: Add to some physics constants file / physics config:
 const G: f64 = 9.81;
@@ -165,5 +165,42 @@ impl SimulationEngine {
         output_buffer: &mut EngineOutput,
     ) {
         todo!("Implement actual physics here!")
+    }
+
+    /// Applies gravity to every cell's vertical component, except for the ceiling and the floor.
+    fn apply_gravity(
+        &self,
+        dt: &Duration,
+        prev_timestep: &EngineOutput,
+        output_buffer: &mut EngineOutput,
+    ) -> anyhow::Result<()> {
+        let gravity = Vector2D::new(0.0, -G);
+
+        // Stop before final horizontal component since that column is only relevant for horizontal
+        // components:
+        for x in 0..self.grid_width {
+            // Start from 1 and stop before final vertical component to skip topmost and lowest
+            // components:
+            for y in 1..self.grid_height {
+                let prev_velocity =
+                    prev_timestep
+                        .staggered_velocities
+                        .get(x, y)
+                        .ok_or_else(|| {
+                            anyhow!("Previous timestep's dimensions are different from engine's")
+                                .context(format!("Missing cell: ({}, {})", x, y))
+                        })?;
+
+                output_buffer
+                    .staggered_velocities
+                    .set(x, y, *prev_velocity + (gravity * dt.as_secs_f64()))
+                    .ok_or_else(|| {
+                        anyhow!("Output buffer's dimensions are different from engine's")
+                            .context(format!("Missing cell: ({}, {})", x, y))
+                    })?;
+            }
+        }
+
+        Ok(())
     }
 }
