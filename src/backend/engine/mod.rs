@@ -1,15 +1,15 @@
 //! This module is responsible for the heart of the fluid simulation - the velocity field
 //! computation.
 
-use std::{
-    cell::OnceCell,
-    sync::{Arc, mpsc::Sender},
-    time::Duration,
-};
+use std::{sync::Arc, time::Duration};
 
 use anyhow::anyhow;
 use vector2d::Vector2D;
 
+use crate::backend::{
+    grid::Grid,
+    pool::{Fish, Pool},
+};
 
 // TODO: Add to some physics constants file / physics config:
 const G: f64 = 9.81;
@@ -21,15 +21,15 @@ const G: f64 = 9.81;
 #[derive(Debug)]
 pub struct EngineOutput {
     /// A grid of velocities that are stored at the **edges** of each cell.
-    /// 
+    ///
     /// For a grid of width `w` and height `h` (meaning `w * h` cells), a staggered grid
     /// would require `w + 1` and `h + 1` width and height respectively.
     /// One could think about "shifting" the velocity grid by half a cell diagonally, then
     /// separating the vertical and horizontal components.
-    /// 
+    ///
     /// Example of a staggered grid's cell vs regular velocity grid cell:
     /// <figure>
-    /// 
+    ///
     ///            Staggered Grid                  Regular grid:
     ///                  /\
     ///         +--------||--------+            +------------------+
@@ -39,16 +39,16 @@ pub struct EngineOutput {
     ///         |                  |            |                  |
     ///         |                  |            |                  |
     ///         +--------||--------+            +------------------+
-    ///                  \/ 
+    ///                  \/
     /// </figure>
-    /// 
+    ///
     /// To find the specific velocity component of a cell at position `(x, y)`, use
     /// this reference:
     /// * **top** - Position `(x, y)`, vertical component.
     /// * **bottom** - Position `(x, y + 1)`, vertical component.
     /// * **left** - Position `(x, y)`, horizontal component.
-    /// * **right** - Position `(x + 1, y`), horizontal component.
-    /// 
+    /// * **right** - Position `(x + 1, y)`, horizontal component.
+    ///
     /// Hopefully you can see from these calculations why the width and height had to be increased by 1.
     pub staggered_velocities: Grid<Vector2D<f64>>,
 } // TODO: Declare fields as necessary
@@ -58,24 +58,26 @@ impl EngineOutput {
     ///
     /// This operation is considered expensive, and should only be done if the caller
     /// has no access to an already allocated `EngineOutput`.
-    /// 
+    ///
     /// `EngineOutput` contains a "staggered grid" of velocities, which means it stores
     /// velocities at the edges of cells instead of at their centers.
-    /// Due to this data type, the width and height used will be the given `width` and 
+    /// Due to this data type, the width and height used will be the given `width` and
     /// `height` arguments, plus 1.
-    /// 
+    ///
     /// Users should not bear that in mind when passing arguments, the function will take
     /// care of it.
-    /// 
+    ///
     /// # Arguments:
     /// * `width` - Number of cells in the horizontal axis of the outputted grid.
     /// * `height` - Number of cells in the vertical axis of the outputted grid.
-    /// 
+    ///
     /// # Return Value:
     /// A new `EngineOutput` object.
     pub fn new(width: usize, height: usize) -> Self {
         let staggered_velocities = Grid::new(width + 1, height + 1);
-        Self { staggered_velocities }
+        Self {
+            staggered_velocities,
+        }
     }
 }
 
@@ -128,7 +130,8 @@ impl SimulationEngine {
         if wait_for_pool {
             self.engine_output_pool.get_fish_blocking()
         } else {
-            self.engine_output_pool.get_fish_or_init(|| EngineOutput::new(self.grid_width, self.grid_height))
+            self.engine_output_pool
+                .get_fish_or_init(|| EngineOutput::new(self.grid_width, self.grid_height))
         }
     }
 
