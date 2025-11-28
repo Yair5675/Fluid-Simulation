@@ -4,6 +4,14 @@ use vector2d::Vector2D;
 
 use crate::backend::grid::Grid;
 
+/// The state of a given state in terms of material.
+#[derive(Debug, Clone, Copy)]
+#[repr(u8)]
+pub enum CellState {
+    Solid = 0,
+    Fluid = 1,
+}
+
 /// The final output of the [`SimulationEngine`] struct when it computes a single
 /// simulation timestep.
 ///
@@ -52,10 +60,16 @@ pub struct EngineOutput {
     ///
     /// This definition aligns with the indexing of velocities, so it should be pretty clear.
     pub staggered_velocities: Grid<Vector2D<f64>>,
+
+    /// A grid detailing the state of each cell in terms of material. Useful for the engine
+    /// and any adapter that needs to distinguish between fluid and solid.
+    pub grid_state: Grid<CellState>,
 }
 
 impl EngineOutput {
-    /// Initializes a new `EngineOutput` object.
+    /// Initializes a new `EngineOutput` object.<br>
+    /// The new `EngineOutput` will contain a "box" full of some non-moving fluid, meaning
+    /// it represents a grid with solid cells at the edges and fluid cells inside.
     ///
     /// This operation is considered expensive, and should only be done if the caller
     /// has no access to an already allocated `EngineOutput`.
@@ -76,8 +90,26 @@ impl EngineOutput {
     /// A new `EngineOutput` object.
     pub fn new(width: usize, height: usize) -> Self {
         let staggered_velocities = Grid::new(width + 1, height + 1);
+        let mut grid_state = Vec::with_capacity(height);
+
+        // Top row
+        grid_state.push(vec![CellState::Solid; width]);
+
+        // Interior rows
+        for _ in 0..height - 2 {
+            let mut row = Vec::with_capacity(width);
+            row.push(CellState::Solid);
+            row.extend(std::iter::repeat(CellState::Fluid).take(width - 2));
+            row.push(CellState::Solid);
+            grid_state.push(row);
+        }
+
+        // Bottom row
+        grid_state.push(vec![CellState::Solid; width]);
+
         Self {
             staggered_velocities,
+            grid_state: Grid::from(grid_state),
         }
     }
 }
