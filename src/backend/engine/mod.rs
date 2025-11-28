@@ -50,6 +50,17 @@ pub struct EngineOutput {
     /// * **right** - Position `(x + 1, y)`, horizontal component.
     ///
     /// Hopefully you can see from these calculations why the width and height had to be increased by 1.
+    ///
+    /// Since each edge (except for the walls) is shared between two cells, the velocities cannot be saved
+    /// relative to the center of the cell they are near (i.e - a positive value cannot indicate "going out
+    /// of the cell", since the velocity in this case would go INTO the cell next to the current one).<br>
+    /// Therefor, the sign of a velocity component is defined as such:
+    /// * **Positive Vertical** - Downwards velocity.
+    /// * **Negative Vertical** - Upwards velocity.
+    /// * **Positive Horizontal** - Rightwards velocity.
+    /// * **Negative Horizontal** - Leftwards velocity.
+    ///
+    /// This definition aligns with the indexing of velocities, so it should be pretty clear.
     pub staggered_velocities: Grid<Vector2D<f64>>,
 } // TODO: Declare fields as necessary
 
