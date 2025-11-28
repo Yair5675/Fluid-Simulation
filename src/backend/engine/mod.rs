@@ -11,12 +11,45 @@ use vector2d::Vector2D;
 
 use crate::backend::{grid::Grid, pool::{Fish, Pool}};
 
+// TODO: Add to some physics constants file / physics config:
+const G: f64 = 9.81;
+
 /// The final output of the [`SimulationEngine`] struct when it computes a single
 /// simulation timestep.
 ///
 /// It is expected to be an expensive struct to allocate, so only do so when necessary.
 #[derive(Debug)]
 pub struct EngineOutput {
+    /// A grid of velocities that are stored at the **edges** of each cell.
+    /// 
+    /// For a grid of width `w` and height `h` (meaning `w * h` cells), a staggered grid
+    /// would require `w + 1` and `h + 1` width and height respectively.
+    /// One could think about "shifting" the velocity grid by half a cell diagonally, then
+    /// separating the vertical and horizontal components.
+    /// 
+    /// Example of a staggered grid's cell vs regular velocity grid cell:
+    /// <figure>
+    /// 
+    ///            Staggered Grid                  Regular grid:
+    ///                  /\
+    ///         +--------||--------+            +------------------+
+    ///         |                  |            |        __ .      |
+    ///         |                  |            |          / \     |
+    ///        ===>              <===           |         /        |
+    ///         |                  |            |                  |
+    ///         |                  |            |                  |
+    ///         +--------||--------+            +------------------+
+    ///                  \/ 
+    /// </figure>
+    /// 
+    /// To find the specific velocity component of a cell at position `(x, y)`, use
+    /// this reference:
+    /// * **top** - Position `(x, y)`, vertical component.
+    /// * **bottom** - Position `(x, y + 1)`, vertical component.
+    /// * **left** - Position `(x, y)`, horizontal component.
+    /// * **right** - Position `(x + 1, y`), horizontal component.
+    /// 
+    /// Hopefully you can see from these calculations why the width and height had to be increased by 1.
     pub staggered_velocities: Grid<Vector2D<f64>>,
 } // TODO: Declare fields as necessary
 
