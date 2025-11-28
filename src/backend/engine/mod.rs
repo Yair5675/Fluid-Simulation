@@ -18,9 +18,20 @@ mod output;
 
 pub use output::EngineOutput;
 
+/// The state of a given state in terms of material.
+#[derive(Debug, Clone, Copy)]
+#[repr(u8)]
+enum CellState {
+    Solid = 0,
+    Fluid = 1,
+}
+
 /// The engine that computes the fluid simulation's
 pub struct SimulationEngine {
     engine_output_pool: Arc<Pool<EngineOutput>>,
+    grid_state: Grid<CellState>, // TODO - move to main backend struct and accept as parameter here, to allow the
+                                 //        adapters to read from the state too, and handle frontend messages somewhere
+                                 //        else.
     // TODO: Put in some kind of configuration in the final version:
     grid_width: usize,
     grid_height: usize,
@@ -28,6 +39,7 @@ pub struct SimulationEngine {
 
 impl SimulationEngine {
     /// Creates a new simulation engine that employs efficient memory reuse by using the given pool.
+    /// The engine will initialize its cells' state to a grid full of fluid whose boundaries are solid.
     ///
     /// # Arguments:
     /// * `grid_width` - Number of cells in the horizontal axis of the outputted grid.
@@ -40,9 +52,27 @@ impl SimulationEngine {
     /// # Return Value:
     /// A new `SimulationEngine` object that attempts to fish from the given pool.
     pub fn new(grid_width: usize, grid_height: usize, pool: Arc<Pool<EngineOutput>>) -> Self {
+        let mut grid_state = Vec::with_capacity(grid_height);
+
+        // Top row:
+        grid_state.push(vec![CellState::Solid; grid_width]);
+
+        // Interior rows:
+        for _ in 0..(grid_height - 2) {
+            let mut row = Vec::with_capacity(grid_width);
+            row.push(CellState::Solid);
+            row.extend(std::iter::repeat(CellState::Fluid).take(grid_width - 2));
+            row.push(CellState::Solid);
+            grid_state.push(row);
+        }
+
+        // Bottom row
+        grid_state.push(vec![CellState::Solid; grid_width]);
+
         Self {
             grid_width,
             grid_height,
+            grid_state: Grid::from(grid_state),
             engine_output_pool: pool,
         }
     }
