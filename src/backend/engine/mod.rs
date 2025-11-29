@@ -33,8 +33,8 @@ enum CellState {
 pub struct SimulationEngine {
     engine_output_pool: Arc<Pool<EngineOutput>>,
     grid_state: Grid<CellState>, // TODO - move to main backend struct and accept as parameter here, to allow the
-                                 //        adapters to read from the state too, and handle frontend messages somewhere
-                                 //        else.
+    //        adapters to read from the state too, and handle frontend messages somewhere
+    //        else.
     // TODO: Put in some kind of configuration in the final version:
     grid_width: usize,
     grid_height: usize,
@@ -138,15 +138,24 @@ impl SimulationEngine {
         output_buffer: &mut EngineOutput,
     ) -> anyhow::Result<()> {
         // Ensure all grids are synchronized in dimensions:
-        ensure!(self.do_grid_dimensions_match(prev_timestep.staggered_velocities), "Previous timestep's dimensions differ from engine's");
-        ensure!(self.do_grid_dimensions_match(output_buffer.staggered_velocities), "Output buffer's dimensions differ from engine's");
-        ensure!(self.do_grid_dimensions_match(self.grid_state), "State grid's dimensions differ from engine's");
+        ensure!(
+            self.do_grid_dimensions_match(prev_timestep.staggered_velocities),
+            "Previous timestep's dimensions differ from engine's"
+        );
+        ensure!(
+            self.do_grid_dimensions_match(output_buffer.staggered_velocities),
+            "Output buffer's dimensions differ from engine's"
+        );
+        ensure!(
+            self.do_grid_dimensions_match(self.grid_state),
+            "State grid's dimensions differ from engine's"
+        );
 
         todo!("Implement actual physics here!")
     }
 
     /// Applies gravity to every cell's vertical component, except for the ceiling and the floor.
-    /// 
+    ///
     /// Note the function expects `prev_timestep`, `output_buffer` and `self.grid_state` to have dimensions
     /// equal to `self.grid_width` and `self.grid_height`.
     fn apply_gravity(
@@ -163,20 +172,18 @@ impl SimulationEngine {
             // Start from 1 and stop before final vertical component to skip topmost and lowest
             // components:
             for y in 1..self.grid_height {
-                let state = 
-                    self
-                        .grid_state
-                        .get(x, y)
-                        .expect("Invariant broke - grid_state dimensions != engine's dimensions");
+                let state = self
+                    .grid_state
+                    .get(x, y)
+                    .expect("Invariant broke - grid_state dimensions != engine's dimensions");
                 if let &CellState::Solid = state {
                     continue;
                 }
 
-                let prev_velocity =
-                    prev_timestep
-                        .staggered_velocities
-                        .get(x, y)
-                        .expect("Invariant broke - prev_timestep dimensions != engine's dimensions");
+                let prev_velocity = prev_timestep
+                    .staggered_velocities
+                    .get(x, y)
+                    .expect("Invariant broke - prev_timestep dimensions != engine's dimensions");
 
                 output_buffer
                     .staggered_velocities
