@@ -22,7 +22,10 @@ pub use output::EngineOutput;
 #[derive(Debug, Clone, Copy)]
 #[repr(u8)]
 enum CellState {
+    /// A solid cell, can represent the boundaries of the grid to prevent it from escaping, or an obstacle.
+    /// ![](https://media.tenor.com/FfNjau1IYxMAAAAe/solidsnake-meme.png)
     Solid = 0,
+    /// A cell full of some fluid (can be an actual fluid or gas).
     Fluid = 1,
 }
 
