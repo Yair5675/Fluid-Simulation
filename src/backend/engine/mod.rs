@@ -166,12 +166,11 @@ impl SimulationEngine {
     ) {
         let gravity = Vector2D::new(0.0, -G);
 
-        // Stop before final horizontal component since that column is only relevant for horizontal
-        // components:
-        for x in 0..self.grid_width {
-            // Start from 1 and stop before final vertical component to skip topmost and lowest
-            // components:
-            for y in 1..self.grid_height {
+        // Start from 1 to skip left wall, and stop before the right wall:
+        for x in 1..(self.grid_width - 1) {
+            // Start from 2 to skip the ceiling's top + bottom velocity component and stop before
+            // the floor's top component:
+            for y in 2..(self.grid_height - 1) {
                 let state = self
                     .grid_state
                     .get(x, y)
