@@ -105,6 +105,25 @@ impl<T> Grid<T> {
         }
     }
 
+    /// Retrieves a mutable reference to the data located at `Grid(x, y)`, without validating
+    /// the coordinates are valid.
+    /// 
+    /// This function is more performant than [Grid::get_mut], but will cause undefined behavior if
+    /// the coordinates are out of bounds.
+    /// 
+    /// # Arguments:
+    /// * `x` - Horizontal index in the grid.
+    /// * `y` - Vertical index in the grid.
+    ///
+    /// # Return Value:
+    /// A mutable reference to the data at coordinates `x`, `y` in the grid.
+    pub unsafe fn get_unchecked_mut(&mut self, x: usize, y: usize) -> &mut T {
+        let flat_index = self.calculate_flat_index(x, y);
+        unsafe {
+            self.flat_grid.get_unchecked_mut(flat_index)
+        }
+    }
+
     /// Sets the data located at `Grid(x, y)`.
     ///
     /// # Arguments:
