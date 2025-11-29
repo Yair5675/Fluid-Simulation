@@ -3,7 +3,7 @@
 
 use std::{sync::Arc, time::Duration};
 
-use anyhow::anyhow;
+use anyhow::{anyhow, ensure};
 use vector2d::Vector2D;
 
 use crate::backend::{
@@ -134,16 +134,24 @@ impl SimulationEngine {
         prev_timestep: &EngineOutput,
         output_buffer: &mut EngineOutput,
     ) -> anyhow::Result<()> {
+        // Ensure all grids are synchronized in dimensions:
+        ensure!(self.do_grid_dimensions_match(prev_timestep.staggered_velocities), "Previous timestep's dimensions differ from engine's");
+        ensure!(self.do_grid_dimensions_match(output_buffer.staggered_velocities), "Output buffer's dimensions differ from engine's");
+        ensure!(self.do_grid_dimensions_match(self.grid_state), "State grid's dimensions differ from engine's");
+
         todo!("Implement actual physics here!")
     }
 
     /// Applies gravity to every cell's vertical component, except for the ceiling and the floor.
+    /// 
+    /// Note the function expects `prev_timestep`, `output_buffer` and `self.grid_state` to have dimensions
+    /// equal to `self.grid_width` and `self.grid_height`.
     fn apply_gravity(
         &self,
         dt: &Duration,
         prev_timestep: &EngineOutput,
         output_buffer: &mut EngineOutput,
-    ) -> anyhow::Result<()> {
+    ) {
         let gravity = Vector2D::new(0.0, -G);
 
         // Stop before final horizontal component since that column is only relevant for horizontal
@@ -156,21 +164,17 @@ impl SimulationEngine {
                     prev_timestep
                         .staggered_velocities
                         .get(x, y)
-                        .ok_or_else(|| {
-                            anyhow!("Previous timestep's dimensions are different from engine's")
-                                .context(format!("Missing cell: ({}, {})", x, y))
-                        })?;
+                        .expect("Invariant broke - prev_timestep dimensions != engine's dimensions");
 
                 output_buffer
                     .staggered_velocities
                     .set(x, y, *prev_velocity + (gravity * dt.as_secs_f64()))
-                    .ok_or_else(|| {
-                        anyhow!("Output buffer's dimensions are different from engine's")
-                            .context(format!("Missing cell: ({}, {})", x, y))
-                    })?;
+                    .expect("Invariant broke - output_buffer dimensions != engine's dimensions");
             }
         }
+    }
 
-        Ok(())
+    fn do_grid_dimensions_match(&self, grid: &Grid<_>) -> bool {
+        self.grid_width == grid.width() && self.grid_height == grid.height()
     }
 }
