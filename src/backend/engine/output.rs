@@ -2,7 +2,12 @@
 
 use vector2d::Vector2D;
 
-use crate::backend::grid::Grid;
+/// A simple struct representing a fluid particle, with position and velocity.
+#[derive(Debug, Clone, Copy)]
+pub struct Particle {
+    pub pos: Vector2D<f64>,
+    pub vel: Vector2D<f64>,
+}
 
 /// The final output of the [`SimulationEngine`] struct when it computes a single
 /// simulation timestep.
@@ -10,48 +15,9 @@ use crate::backend::grid::Grid;
 /// It is expected to be an expensive struct to allocate, so only do so when necessary.
 #[derive(Debug)]
 pub struct EngineOutput {
-    /// A grid of velocities that are stored at the **edges** of each cell.
-    ///
-    /// For a grid of width `w` and height `h` (meaning `w * h` cells), a staggered grid
-    /// would require `w + 1` and `h + 1` width and height respectively.
-    /// One could think about "shifting" the velocity grid by half a cell diagonally, then
-    /// separating the vertical and horizontal components.
-    ///
-    /// Example of a staggered grid's cell vs regular velocity grid cell:
-    /// <figure>
-    ///
-    ///            Staggered Grid                  Regular grid:
-    ///                  /\
-    ///         +--------||--------+            +------------------+
-    ///         |                  |            |        __ .      |
-    ///         |                  |            |          / \     |
-    ///        ===>              <===           |         /        |
-    ///         |                  |            |                  |
-    ///         |                  |            |                  |
-    ///         +--------||--------+            +------------------+
-    ///                  \/
-    /// </figure>
-    ///
-    /// To find the specific velocity component of a cell at position `(x, y)`, use
-    /// this reference:
-    /// * **top** - Position `(x, y)`, vertical component.
-    /// * **bottom** - Position `(x, y + 1)`, vertical component.
-    /// * **left** - Position `(x, y)`, horizontal component.
-    /// * **right** - Position `(x + 1, y)`, horizontal component.
-    ///
-    /// Hopefully you can see from these calculations why the width and height had to be increased by 1.
-    ///
-    /// Since each edge (except for the walls) is shared between two cells, the velocities cannot be saved
-    /// relative to the center of the cell they are near (i.e - a positive value cannot indicate "going out
-    /// of the cell", since the velocity in this case would go INTO the cell next to the current one).<br>
-    /// Therefor, the sign of a velocity component is defined as such:
-    /// * **Positive Vertical** - Downwards velocity.
-    /// * **Negative Vertical** - Upwards velocity.
-    /// * **Positive Horizontal** - Rightwards velocity.
-    /// * **Negative Horizontal** - Leftwards velocity.
-    ///
-    /// This definition aligns with the indexing of velocities, so it should be pretty clear.
-    pub staggered_velocities: Grid<Vector2D<f64>>,
+    pub grid_width: usize,
+    pub grid_height: usize,
+    pub particles: Vec<Particle>,
 }
 
 impl EngineOutput {
@@ -60,24 +26,43 @@ impl EngineOutput {
     /// This operation is considered expensive, and should only be done if the caller
     /// has no access to an already allocated `EngineOutput`.
     ///
-    /// `EngineOutput` contains a "staggered grid" of velocities, which means it stores
-    /// velocities at the edges of cells instead of at their centers.
-    /// Due to this data type, the width and height used will be the given `width` and
-    /// `height` arguments, plus 1.
-    ///
-    /// Users should not bear that in mind when passing arguments, the function will take
-    /// care of it.
-    ///
     /// # Arguments:
-    /// * `width` - Number of cells in the horizontal axis of the outputted grid.
-    /// * `height` - Number of cells in the vertical axis of the outputted grid.
+    /// * `particles_count` - Number of particle the simulation wants to compute.
+    /// * `width` - Number of cells in the horizontal axis of the grid used to store velocities.
+    /// * `height` - Number of cells in the vertical axis of the grid used to store velocities.
     ///
     /// # Return Value:
     /// A new `EngineOutput` object.
-    pub fn new(width: usize, height: usize) -> Self {
-        let staggered_velocities = Grid::new(width + 1, height + 1);
+    pub fn new(mut particles_count: usize, width: usize, height: usize) -> Self {
+        // TODO: Handle cases where width or height are less than/equal to 2
+        let mut particles = Vec::with_capacity(particles_count);
+        let particles_per_cell =
+            (((width - 2) * (height - 2)) as f64 / particles_count as f64).ceil();
+
+        let distance_from_wall = 0.01;
+        let default_vel = Vector2D::new(0.0, 0.0);
+
+        for x in 1..(width - 1) {
+            for y in 1..(height - 1) {
+                let particles_in_this_cell = particles_per_cell.min(particles_count as f64);
+                let x_increment = (particles_in_this_cell + 1.0).recip();
+                for p in 0..(particles_in_this_cell as usize) {
+                    let pos = Vector2D {
+                        x: distance_from_wall + x as f64 + p as f64 * x_increment,
+                        y: y as f64 + distance_from_wall,
+                    };
+                    particles.push(Particle {
+                        pos,
+                        vel: default_vel,
+                    });
+                }
+            }
+        }
+
         Self {
-            staggered_velocities,
+            grid_width: width,
+            grid_height: height,
+            particles,
         }
     }
 }
