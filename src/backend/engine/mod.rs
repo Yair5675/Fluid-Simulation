@@ -139,15 +139,15 @@ impl SimulationEngine {
     ) -> anyhow::Result<()> {
         // Ensure all grids are synchronized in dimensions:
         ensure!(
-            self.do_grid_dimensions_match(prev_timestep.staggered_velocities),
+            self.do_grid_dimensions_match(&prev_timestep.staggered_velocities),
             "Previous timestep's dimensions differ from engine's"
         );
         ensure!(
-            self.do_grid_dimensions_match(output_buffer.staggered_velocities),
+            self.do_grid_dimensions_match(&output_buffer.staggered_velocities),
             "Output buffer's dimensions differ from engine's"
         );
         ensure!(
-            self.do_grid_dimensions_match(self.grid_state),
+            self.do_grid_dimensions_match(&self.grid_state),
             "State grid's dimensions differ from engine's"
         );
 
@@ -193,7 +193,7 @@ impl SimulationEngine {
         }
     }
 
-    fn do_grid_dimensions_match(&self, grid: &Grid<_>) -> bool {
+    fn do_grid_dimensions_match<C>(&self, grid: &Grid<C>) -> bool {
         self.grid_width == grid.width() && self.grid_height == grid.height()
     }
 }
