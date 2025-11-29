@@ -73,6 +73,20 @@ impl<T> Grid<T> {
         self.flat_grid.get(self.calculate_flat_index(x, y))
     }
 
+    /// Retrieves a mutable reference to the data located at `Grid(x, y)`.
+    ///
+    /// # Arguments:
+    /// * `x` - Horizontal index in the grid.
+    /// * `y` - Vertical index in the grid.
+    ///
+    /// # Return Value:
+    /// A mutable reference to the data at coordinates `x`, `y` in the grid, or `None` if such
+    /// coordinates point to outside the grid.
+    pub fn get_mut(&mut self, x: usize, y: usize) -> Option<&mut T> {
+        let flat_index = self.calculate_flat_index(x, y);
+        self.flat_grid.get_mut(flat_index)
+    }
+
     /// Retrieves a reference to the data located at `Grid(x, y)`, without validating
     /// the coordinates are valid.
     /// 
