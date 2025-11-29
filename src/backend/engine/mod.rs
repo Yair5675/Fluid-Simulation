@@ -160,6 +160,15 @@ impl SimulationEngine {
             // Start from 1 and stop before final vertical component to skip topmost and lowest
             // components:
             for y in 1..self.grid_height {
+                let state = 
+                    self
+                        .grid_state
+                        .get(x, y)
+                        .expect("Invariant broke - grid_state dimensions != engine's dimensions");
+                if let &CellState::Solid = state {
+                    continue;
+                }
+
                 let prev_velocity =
                     prev_timestep
                         .staggered_velocities
