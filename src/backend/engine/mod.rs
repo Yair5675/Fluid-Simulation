@@ -34,6 +34,15 @@ enum CellState {
 /// The engine that computes the fluid simulation's
 pub struct SimulationEngine {
     engine_output_pool: Arc<Pool<EngineOutput>>,
+    /// In the PIC/FLIP method, the engine needs two separate staggered grids to hold the velocities:
+    /// * One right *before* making the grid incompressible.
+    /// * Another right *after* making the grid incompressible.
+    /// In the final stage, the engine adds the difference between the grids back to the particle.
+    /// 
+    /// To avoid making a copy every single timestep, two are saved here, and will be modified over and over.
+    /// The first grid will hold the not-yet-incompressible velocities, the second one will hold the already-incompressible
+    /// velocities.
+    staggered_velocities: (Grid<Vector2D<f64>>, Grid<Vector2D<f64>>),
     grid_state: Grid<CellState>, // TODO - move to main backend struct and accept as parameter here, to allow the
     //        adapters to read from the state too, and handle frontend messages somewhere
     //        else.
@@ -59,6 +68,10 @@ impl SimulationEngine {
     /// # Return Value:
     /// A new `SimulationEngine` object that attempts to fish from the given pool.
     pub fn new(grid_width: usize, grid_height: usize, pool: Arc<Pool<EngineOutput>>) -> Self {
+        let staggered_velocities = (
+            Grid::new(grid_width + 1, grid_height + 1),
+            Grid::new(grid_width + 1, grid_height + 1)
+        );
         let mut grid_state = Vec::with_capacity(grid_height);
 
         // Top row:
@@ -79,6 +92,7 @@ impl SimulationEngine {
         Self {
             grid_width,
             grid_height,
+            staggered_velocities,
             projection_iterations: DEFAULT_PROJECTIONS_ITERATIONS,
             overrelaxation_factor: DEFAULT_OVERRELAXATION_FACTOR,
             grid_state: Grid::from(grid_state),
