@@ -13,6 +13,8 @@ use crate::backend::{
 
 // TODO: Add to some physics constants file / physics config:
 const G: f64 = 9.81;
+const DEFAULT_PROJECTIONS_ITERATIONS: usize = 25;
+const DEFAULT_OVERRELAXATION_FACTOR: f64 = 1.9;
 
 mod output;
 
@@ -38,6 +40,8 @@ pub struct SimulationEngine {
     // TODO: Put in some kind of configuration in the final version:
     grid_width: usize,
     grid_height: usize,
+    projection_iterations: usize,
+    overrelaxation_factor: f64,
 }
 
 impl SimulationEngine {
@@ -75,6 +79,8 @@ impl SimulationEngine {
         Self {
             grid_width,
             grid_height,
+            projection_iterations: DEFAULT_PROJECTIONS_ITERATIONS,
+            overrelaxation_factor: DEFAULT_OVERRELAXATION_FACTOR,
             grid_state: Grid::from(grid_state),
             engine_output_pool: pool,
         }
@@ -190,6 +196,78 @@ impl SimulationEngine {
                     .expect("Invariant broke - output_buffer dimensions != engine's dimensions");
             }
         }
+    }
+
+    /// Applies the projection step of the simulation (i.e - ensuring incompressibility).
+    fn apply_projection(&self, current_timestep: &mut EngineOutput) {
+        for _ in 0..self.projection_iterations {
+            // Start from 1 to skip left wall, and stop before the right wall:
+            for x in 1..(self.grid_width - 1) {
+                // Start from 1 to skip ceiling, and stop before the floor:
+                for y in 1..(self.grid_height - 1) {
+                    unsafe {
+                        let divergence = self.overrelaxation_factor * Self::unchecked_calculate_divergence(x, y, &current_timestep.staggered_velocities);
+                        let fluid_neighbors = self.count_fluid_neighbors(x, y);
+                        let velocity_correction = divergence / fluid_neighbors as f64;
+                    
+                        // Multiply by state since solid is 0 (and will not affect anything), while fluid is 1:
+                        let topleft = current_timestep.staggered_velocities.get_unchecked_mut(x, y);
+                        topleft.x += velocity_correction * ((*self.grid_state.get_unchecked(x - 1, y) as u8) as f64);
+                        topleft.y += velocity_correction * ((*self.grid_state.get_unchecked(x, y - 1) as u8) as f64);
+
+                        let bottom = current_timestep.staggered_velocities.get_unchecked_mut(x, y + 1);
+                        bottom.y += velocity_correction * ((*self.grid_state.get_unchecked(x, y + 1) as u8) as f64);
+
+                        let right = current_timestep.staggered_velocities.get_unchecked_mut(x + 1, y);
+                        right.x += velocity_correction * ((*self.grid_state.get_unchecked(x + 1, y) as u8) as f64);
+                    }
+                    
+                }
+            }
+        }
+    }
+
+    /// Calculates the divergence (total outflow) for a given cell in a staggered grid.
+    ///
+    /// The function assumes `x` and `y` are valid coordinates within the grid to increase
+    /// performance. If they are outside the grid, expect undefined behavior.
+    unsafe fn unchecked_calculate_divergence(
+        x: usize,
+        y: usize,
+        staggered_velocities: &Grid<Vector2D<f64>>,
+    ) -> f64 {
+        unsafe {
+            let top_outflow = -staggered_velocities.get(x, y).unwrap_unchecked().y;
+            let bottom_outflow = staggered_velocities.get(x, y + 1).unwrap_unchecked().y;
+            let left_outflow = -staggered_velocities.get(x, y).unwrap_unchecked().x;
+            let right_outflow = staggered_velocities.get(x + 1, y).unwrap_unchecked().x;
+            top_outflow + bottom_outflow + left_outflow + right_outflow
+        }
+    }
+
+    fn count_fluid_neighbors(&self, x: usize, y: usize) -> u8 {
+        let left_neighbor = self
+            .grid_state
+            .get(x - 1, y)
+            .map(|&state| state as u8)
+            .unwrap_or_default();
+        let right_neighbor = self
+            .grid_state
+            .get(x + 1, y)
+            .map(|&state| state as u8)
+            .unwrap_or_default();
+        let top_neighbor = self
+            .grid_state
+            .get(x, y - 1)
+            .map(|&state| state as u8)
+            .unwrap_or_default();
+        let bottom_neighbor = self
+            .grid_state
+            .get(x, y + 1)
+            .map(|&state| state as u8)
+            .unwrap_or_default();
+
+        left_neighbor + right_neighbor + top_neighbor + bottom_neighbor
     }
 
     fn do_grid_dimensions_match<C>(&self, grid: &Grid<C>) -> bool {
