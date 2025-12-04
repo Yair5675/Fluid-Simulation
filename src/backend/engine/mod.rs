@@ -57,6 +57,7 @@ const G: f64 = 9.81;
 const DEFAULT_PROJECTIONS_ITERATIONS: usize = 25;
 const DEFAULT_OVERRELAXATION_FACTOR: f64 = 1.9;
 const DEFAULT_VELOCITY_ABSORPTION_FACTOR: f64 = 0.3;
+const DEFAULT_GRID_SPACING: f64 = 1.0;
 
 mod output;
 
@@ -91,6 +92,7 @@ pub struct SimulationEngine {
     // TODO: Put in some kind of configuration in the final version:
     grid_width: usize,
     grid_height: usize,
+    grid_spacing:f64,
     particles_count: usize,
     projection_iterations: usize,
     overrelaxation_factor: f64,
@@ -122,6 +124,7 @@ impl SimulationEngine {
             grid_height,
             particles_count,
             staggered_velocities,
+            grid_spacing: DEFAULT_GRID_SPACING,
             projection_iterations: DEFAULT_PROJECTIONS_ITERATIONS,
             overrelaxation_factor: DEFAULT_OVERRELAXATION_FACTOR,
             velocity_absorption_factor: DEFAULT_VELOCITY_ABSORPTION_FACTOR,
@@ -245,7 +248,7 @@ impl SimulationEngine {
     }
 
     fn get_cell_by_position(&self, pos: &Vector2D<f64>) -> Option<&CellState> {
-        self.grid_state.get(pos.x as usize / self.grid_width, pos.y as usize / self.grid_height)
+        self.grid_state.get((pos.x / self.grid_spacing) as usize, (pos.y / self.grid_spacing) as usize)
     }
 
     /// Applies the projection step of the simulation (i.e - ensuring incompressibility).
