@@ -49,14 +49,14 @@ use anyhow::{anyhow, ensure};
 use vector2d::Vector2D;
 
 use crate::backend::{
-    grid::{self, Grid},
-    pool::{Fish, Pool},
+    engine::output::Particle, grid::{self, Grid}, pool::{Fish, Pool}
 };
 
 // TODO: Add to some physics constants file / physics config:
 const G: f64 = 9.81;
 const DEFAULT_PROJECTIONS_ITERATIONS: usize = 25;
 const DEFAULT_OVERRELAXATION_FACTOR: f64 = 1.9;
+const DEFAULT_VELOCITY_ABSORPTION_FACTOR: f64 = 0.3;
 
 mod output;
 
@@ -94,6 +94,7 @@ pub struct SimulationEngine {
     particles_count: usize,
     projection_iterations: usize,
     overrelaxation_factor: f64,
+    velocity_absorption_factor: f64,
 }
 
 impl SimulationEngine {
@@ -123,6 +124,7 @@ impl SimulationEngine {
             staggered_velocities,
             projection_iterations: DEFAULT_PROJECTIONS_ITERATIONS,
             overrelaxation_factor: DEFAULT_OVERRELAXATION_FACTOR,
+            velocity_absorption_factor: DEFAULT_VELOCITY_ABSORPTION_FACTOR,
             grid_state: Self::build_initial_state_grid(grid_width, grid_height),
             engine_output_pool: pool,
         }
@@ -207,6 +209,43 @@ impl SimulationEngine {
         output_buffer: &mut EngineOutput,
     ) -> anyhow::Result<()> {
         todo!("Implement actual physics here!")
+    }
+
+    fn apply_forces(&self, dt: &Duration, prev_timestep: &EngineOutput, output_buffer: &mut EngineOutput) {
+        prev_timestep
+            .particles
+            .iter()
+            .zip(output_buffer.particles.iter_mut())
+            .for_each(|(in_particle, out)| {
+                self.simulate_particle_movement(dt, in_particle, out);
+            });
+    }
+
+    /// Simulates the 2-D particle's movement in space - applying acceleration and velocity to its velocity
+    /// and position respectively.
+    /// 
+    /// If the new position is inside a solid cell, the function moves the particle out of the way.
+    /// 
+    /// **Note**: The function assumes `in_particle` was not in a solid cell.
+    fn simulate_particle_movement(&self, dt: &Duration, in_particle: &Particle, out_particle: &mut Particle) {
+        let dt_secs = dt.as_secs_f64();
+        out_particle.vel.y = in_particle.vel.y + G * dt_secs;
+        out_particle.vel.x = in_particle.vel.x;
+
+        out_particle.pos.x = in_particle.pos.x + dt_secs * out_particle.vel.x;
+        out_particle.pos.y = in_particle.pos.y + dt_secs * out_particle.vel.y;
+
+        // If we hit a solid, some energy is absorbed and the velocity is inverted:
+        if let Some(CellState::Solid) | None = self.get_cell_by_position(&out_particle.pos) {
+            let energy_remaining = 1. - self.velocity_absorption_factor;
+            out_particle.pos = in_particle.pos;
+            out_particle.vel.x *= -energy_remaining;
+            out_particle.vel.y *= -energy_remaining;
+        }
+    }
+
+    fn get_cell_by_position(&self, pos: &Vector2D<f64>) -> Option<&CellState> {
+        self.grid_state.get(pos.x as usize / self.grid_width, pos.y as usize / self.grid_height)
     }
 
     /// Applies the projection step of the simulation (i.e - ensuring incompressibility).
