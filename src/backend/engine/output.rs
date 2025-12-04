@@ -3,6 +3,13 @@
 use vector2d::Vector2D;
 
 /// A simple struct representing a fluid particle, with position and velocity.
+/// 
+/// Note the axes of the particle's position and velocity are in accordance with the staggered
+/// grid:
+/// * **Positive Vertical** - Down.
+/// * **Negative Vertical** - Up.
+/// * **Positive Horizontal** - Right.
+/// * **Negative Horizontal** - Left.
 #[derive(Debug, Clone, Copy)]
 pub struct Particle {
     pub pos: Vector2D<f64>,
