@@ -1,13 +1,55 @@
 //! This module is responsible for the heart of the fluid simulation - the velocity field
 //! computation.
 
+// A grid of velocities that are stored at the **edges** of each cell.
+//
+// For a grid of width `w` and height `h` (meaning `w * h` cells), a staggered grid
+// would require `w + 1` and `h + 1` width and height respectively.
+// One could think about "shifting" the velocity grid by half a cell diagonally, then
+// separating the vertical and horizontal components.
+//
+// Example of a staggered grid's cell vs regular velocity grid cell:
+// <figure>
+//
+//            Staggered Grid                  Regular grid:
+//                  /\
+//         +--------||--------+            +------------------+
+//         |                  |            |        __ .      |
+//         |                  |            |          / \     |
+//        ===>              <===           |         /        |
+//         |                  |            |                  |
+//         |                  |            |                  |
+//         +--------||--------+            +------------------+
+//                  \/
+// </figure>
+//
+// To find the specific velocity component of a cell at position `(x, y)`, use
+// this reference:
+// * **top** - Position `(x, y)`, vertical component.
+// * **bottom** - Position `(x, y + 1)`, vertical component.
+// * **left** - Position `(x, y)`, horizontal component.
+// * **right** - Position `(x + 1, y)`, horizontal component.
+//
+// Hopefully you can see from these calculations why the width and height had to be increased by 1.
+//
+// Since each edge (except for the walls) is shared between two cells, the velocities cannot be saved
+// relative to the center of the cell they are near (i.e - a positive value cannot indicate "going out
+// of the cell", since the velocity in this case would go INTO the cell next to the current one).<br>
+// Therefor, the sign of a velocity component is defined as such:
+// * **Positive Vertical** - Downwards velocity.
+// * **Negative Vertical** - Upwards velocity.
+// * **Positive Horizontal** - Rightwards velocity.
+// * **Negative Horizontal** - Leftwards velocity.
+//
+// This definition aligns with the indexing of velocities, so it should be pretty clear.
+
 use std::{sync::Arc, time::Duration};
 
 use anyhow::{anyhow, ensure};
 use vector2d::Vector2D;
 
 use crate::backend::{
-    grid::Grid,
+    grid::{self, Grid},
     pool::{Fish, Pool},
 };
 
@@ -49,6 +91,7 @@ pub struct SimulationEngine {
     // TODO: Put in some kind of configuration in the final version:
     grid_width: usize,
     grid_height: usize,
+    particles_count: usize,
     projection_iterations: usize,
     overrelaxation_factor: f64,
 }
@@ -67,11 +110,25 @@ impl SimulationEngine {
     ///
     /// # Return Value:
     /// A new `SimulationEngine` object that attempts to fish from the given pool.
-    pub fn new(grid_width: usize, grid_height: usize, pool: Arc<Pool<EngineOutput>>) -> Self {
+    pub fn new(particles_count: usize, grid_width: usize, grid_height: usize, pool: Arc<Pool<EngineOutput>>) -> Self {
         let staggered_velocities = (
             Grid::new(grid_width + 1, grid_height + 1),
             Grid::new(grid_width + 1, grid_height + 1)
         );
+
+        Self {
+            grid_width,
+            grid_height,
+            particles_count,
+            staggered_velocities,
+            projection_iterations: DEFAULT_PROJECTIONS_ITERATIONS,
+            overrelaxation_factor: DEFAULT_OVERRELAXATION_FACTOR,
+            grid_state: Self::build_initial_state_grid(grid_width, grid_height),
+            engine_output_pool: pool,
+        }
+    }
+
+    fn build_initial_state_grid(grid_width: usize, grid_height: usize) -> Grid<CellState> {
         let mut grid_state = Vec::with_capacity(grid_height);
 
         // Top row:
@@ -89,15 +146,7 @@ impl SimulationEngine {
         // Bottom row
         grid_state.push(vec![CellState::Solid; grid_width]);
 
-        Self {
-            grid_width,
-            grid_height,
-            staggered_velocities,
-            projection_iterations: DEFAULT_PROJECTIONS_ITERATIONS,
-            overrelaxation_factor: DEFAULT_OVERRELAXATION_FACTOR,
-            grid_state: Grid::from(grid_state),
-            engine_output_pool: pool,
-        }
+        Grid::from(grid_state)
     }
 
     /// Retrieves a new [`EngineOutput`] object.
@@ -121,7 +170,7 @@ impl SimulationEngine {
             self.engine_output_pool.get_fish_blocking()
         } else {
             self.engine_output_pool
-                .get_fish_or_init(|| EngineOutput::new(self.grid_width, self.grid_height))
+                .get_fish_or_init(|| EngineOutput::new(self.particles_count, self.grid_width, self.grid_height))
         }
     }
 
@@ -157,82 +206,30 @@ impl SimulationEngine {
         prev_timestep: &EngineOutput,
         output_buffer: &mut EngineOutput,
     ) -> anyhow::Result<()> {
-        // Ensure all grids are synchronized in dimensions:
-        ensure!(
-            self.do_staggered_grid_dimensions_match(&prev_timestep.staggered_velocities),
-            "Previous timestep's dimensions differ from engine's"
-        );
-        ensure!(
-            self.do_staggered_grid_dimensions_match(&output_buffer.staggered_velocities),
-            "Output buffer's dimensions differ from engine's"
-        );
-        ensure!(
-            self.do_grid_dimensions_match(&self.grid_state),
-            "State grid's dimensions differ from engine's"
-        );
-
         todo!("Implement actual physics here!")
     }
 
-    /// Applies gravity to every cell's vertical component, except for the ceiling and the floor.
-    ///
-    /// Note the function expects `prev_timestep`, `output_buffer` and `self.grid_state` to have dimensions
-    /// equal to `self.grid_width` and `self.grid_height`.
-    fn apply_gravity(
-        &self,
-        dt: &Duration,
-        prev_timestep: &EngineOutput,
-        output_buffer: &mut EngineOutput,
-    ) {
-        let gravity = Vector2D::new(0.0, -G);
-
-        // Start from 1 to skip left wall, and stop before the right wall:
-        for x in 1..(self.grid_width - 1) {
-            // Start from 2 to skip the ceiling's top + bottom velocity component and stop before
-            // the floor's top component:
-            for y in 2..(self.grid_height - 1) {
-                let state = self
-                    .grid_state
-                    .get(x, y)
-                    .expect("Invariant broke - grid_state dimensions != engine's dimensions");
-                if let &CellState::Solid = state {
-                    continue;
-                }
-
-                let prev_velocity = prev_timestep
-                    .staggered_velocities
-                    .get(x, y)
-                    .expect("Invariant broke - prev_timestep dimensions != engine's dimensions");
-
-                output_buffer
-                    .staggered_velocities
-                    .set(x, y, *prev_velocity + (gravity * dt.as_secs_f64()))
-                    .expect("Invariant broke - output_buffer dimensions != engine's dimensions");
-            }
-        }
-    }
-
     /// Applies the projection step of the simulation (i.e - ensuring incompressibility).
-    fn apply_projection(&self, current_timestep: &mut EngineOutput) {
+    fn apply_projection(&mut self) {
         for _ in 0..self.projection_iterations {
             // Start from 1 to skip left wall, and stop before the right wall:
             for x in 1..(self.grid_width - 1) {
                 // Start from 1 to skip ceiling, and stop before the floor:
                 for y in 1..(self.grid_height - 1) {
                     unsafe {
-                        let divergence = self.overrelaxation_factor * Self::unchecked_calculate_divergence(x, y, &current_timestep.staggered_velocities);
+                        let divergence = self.overrelaxation_factor * Self::unchecked_calculate_divergence(x, y, &self.staggered_velocities.1);
                         let fluid_neighbors = self.count_fluid_neighbors(x, y);
                         let velocity_correction = divergence / fluid_neighbors as f64;
                     
                         // Multiply by state since solid is 0 (and will not affect anything), while fluid is 1:
-                        let topleft = current_timestep.staggered_velocities.get_unchecked_mut(x, y);
+                        let topleft = self.staggered_velocities.1.get_unchecked_mut(x, y);
                         topleft.x += velocity_correction * ((*self.grid_state.get_unchecked(x - 1, y) as u8) as f64);
                         topleft.y += velocity_correction * ((*self.grid_state.get_unchecked(x, y - 1) as u8) as f64);
 
-                        let bottom = current_timestep.staggered_velocities.get_unchecked_mut(x, y + 1);
+                        let bottom = self.staggered_velocities.1.get_unchecked_mut(x, y + 1);
                         bottom.y += velocity_correction * ((*self.grid_state.get_unchecked(x, y + 1) as u8) as f64);
 
-                        let right = current_timestep.staggered_velocities.get_unchecked_mut(x + 1, y);
+                        let right = self.staggered_velocities.1.get_unchecked_mut(x + 1, y);
                         right.x += velocity_correction * ((*self.grid_state.get_unchecked(x + 1, y) as u8) as f64);
                     }
                     
