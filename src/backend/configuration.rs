@@ -4,7 +4,7 @@ use std::num::NonZeroUsize;
 
 use serde::Deserialize;
 
-use crate::backend::processor::adapters::AdapterConfiguration;
+use crate::backend::{engine::EngineConfiguration, processor::adapters::AdapterConfiguration};
 
 /// A struct grouping all configurable attributes of the simulation, allowing
 /// its behavior to be changed flexibly.
@@ -22,4 +22,7 @@ pub struct BackendConfiguration {
 
     /// Configuration for the specific adapter used in the simulation:
     pub adapter_configuration: AdapterConfiguration,
+
+    /// Configurable values specific to the simulation's engine:
+    pub engine: EngineConfiguration,
 }
