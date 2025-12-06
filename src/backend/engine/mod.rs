@@ -65,13 +65,30 @@ pub use output::EngineOutput;
 
 /// The state of a given state in terms of material.
 #[derive(Debug, Clone, Copy)]
-#[repr(u8)]
 enum CellState {
     /// A solid cell, can represent the boundaries of the grid to prevent it from escaping, or an obstacle.
     /// ![](https://media.tenor.com/FfNjau1IYxMAAAAe/solidsnake-meme.png)
-    Solid = 0,
-    /// A cell full of some fluid (can be an actual fluid or gas).
-    Fluid = 1,
+    Solid,
+    /// A cell full of water.
+    Water,
+    /// A cell full of air.
+    Air,
+}
+
+impl CellState {
+    /// Each cell's velocity should be changed differently based on its type.
+    /// This function returns a weight between 0.0 and 1.0 that can be multiplied by the velocity correction
+    /// to this cell to yield the disered correction.
+    /// 
+    /// Solid state for example yields a weight of 0.0, because they should not be affected, while water and air
+    /// cells yield 1.0.
+    pub fn velocity_correction_weight(&self) -> f64 {
+        match self {
+            CellState::Solid => 0.0,
+            CellState::Air => 1.0,
+            CellState::Water => 1.0,
+        }
+    }
 }
 
 /// The engine that computes the fluid simulation's
@@ -143,7 +160,7 @@ impl SimulationEngine {
         for _ in 0..(grid_height - 2) {
             let mut row = Vec::with_capacity(grid_width);
             row.push(CellState::Solid);
-            row.extend(std::iter::repeat(CellState::Fluid).take(grid_width - 2));
+            row.extend(std::iter::repeat(CellState::Water).take(grid_width - 2));
             row.push(CellState::Solid);
             grid_state.push(row);
         }
@@ -265,14 +282,14 @@ impl SimulationEngine {
                     
                         // Multiply by state since solid is 0 (and will not affect anything), while fluid is 1:
                         let topleft = self.staggered_velocities.1.get_unchecked_mut(x, y);
-                        topleft.x += velocity_correction * ((*self.grid_state.get_unchecked(x - 1, y) as u8) as f64);
-                        topleft.y += velocity_correction * ((*self.grid_state.get_unchecked(x, y - 1) as u8) as f64);
+                        topleft.x += velocity_correction * self.grid_state.get_unchecked(x - 1, y).velocity_correction_weight();
+                        topleft.y += velocity_correction * self.grid_state.get_unchecked(x, y - 1).velocity_correction_weight();
 
                         let bottom = self.staggered_velocities.1.get_unchecked_mut(x, y + 1);
-                        bottom.y += velocity_correction * ((*self.grid_state.get_unchecked(x, y + 1) as u8) as f64);
+                        bottom.y += velocity_correction * self.grid_state.get_unchecked(x, y + 1).velocity_correction_weight();
 
                         let right = self.staggered_velocities.1.get_unchecked_mut(x + 1, y);
-                        right.x += velocity_correction * ((*self.grid_state.get_unchecked(x + 1, y) as u8) as f64);
+                        right.x += velocity_correction * self.grid_state.get_unchecked(x + 1, y).velocity_correction_weight();
                     }
                     
                 }
