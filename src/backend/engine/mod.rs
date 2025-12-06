@@ -243,13 +243,27 @@ impl SimulationEngine {
         todo!("Implement actual physics here!")
     }
 
-    fn apply_forces(&self, dt: &Duration, prev_timestep: &EngineOutput, output_buffer: &mut EngineOutput) {
+    fn apply_forces_and_update_state(&mut self, dt: &Duration, prev_timestep: &EngineOutput, output_buffer: &mut EngineOutput) {
+        // Clear state for any previously-water cell
+        self.grid_state.for_each_mut(|state, _| {
+            if let &mut CellState::Water = state {
+                *state = CellState::Air;
+            }
+        });
+
         prev_timestep
             .particles
             .iter()
             .zip(output_buffer.particles.iter_mut())
             .for_each(|(in_particle, out)| {
                 self.simulate_particle_movement(dt, in_particle, out);
+
+                // Mark the cell as water (it has a water particle):
+                let coords = (
+                    (out.pos.x / self.grid_spacing) as usize,
+                    (out.pos.y / self.grid_spacing) as usize,
+                );
+                self.grid_state.set(coords.0, coords.1, CellState::Water);
             });
     }
 
