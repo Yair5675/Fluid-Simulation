@@ -49,24 +49,17 @@ use anyhow::ensure;
 use vector2d::Vector2D;
 
 use crate::backend::{
-    engine::output::Particle,
     grid::Grid,
     pool::{Fish, Pool},
 };
 
-// TODO: Add to some physics constants file / physics config:
 const G: f64 = 9.81;
-const DEFAULT_PROJECTIONS_ITERATIONS: usize = 25;
-const DEFAULT_OVERRELAXATION_FACTOR: f64 = 1.9;
-const DEFAULT_VELOCITY_ABSORPTION_FACTOR: f64 = 0.3;
-const DEFAULT_GRID_SPACING: f64 = 1.0;
-const DEFAULT_STIFFNESS_FACTOR: f64 = 1.0;
-const DEFAULT_PIC_FACTOR: f64 = 0.1;
-const DEFAULT_FLIP_FACTOR: f64 = 1.0 - DEFAULT_PIC_FACTOR;
 
+mod config;
 mod output;
 
-pub use output::EngineOutput;
+pub use output::{EngineOutput, Particle};
+pub use self::config::EngineConfiguration;
 
 /// The state of a given state in terms of material.
 #[derive(Debug, Clone, Copy)]
@@ -127,12 +120,7 @@ pub struct SimulationEngine {
     grid_height: usize,
     grid_spacing: f64,
     particles_count: usize,
-    projection_iterations: usize,
-    overrelaxation_factor: f64,
-    velocity_absorption_factor: f64,
-    stiffness_factor: f64,
-    pic_factor: f64,
-    flip_factor: f64,
+    config: EngineConfiguration,
 }
 
 impl SimulationEngine {
@@ -142,18 +130,22 @@ impl SimulationEngine {
     /// # Arguments:
     /// * `grid_width` - Number of cells in the horizontal axis of the outputted grid.
     /// * `grid_height` - Number of cells in the vertical axis of the outputted grid.
+    /// * `grid_spacing` - Size of each cell, the distance between two parallel edges.
     /// * `pool` - A pool of [`EngineOutput`] objects, wrapped in an `Arc` so that other threads
     ///            can populate it as well.
     ///            The pool doesn't have to contain any values when passed to the function. The
     ///            engine will allocate a new object if the pool is empty.
-    ///
+    /// * `config` - Configuration struct with values specific to the engine.
+    /// 
     /// # Return Value:
     /// A new `SimulationEngine` object that attempts to fish from the given pool.
     pub fn new(
         particles_count: usize,
         grid_width: usize,
         grid_height: usize,
+        grid_spacing: f64,
         pool: Arc<Pool<EngineOutput>>,
+        config: EngineConfiguration
     ) -> Self {
         let staggered_velocities = (
             Grid::new(grid_width + 1, grid_height + 1),
@@ -163,16 +155,11 @@ impl SimulationEngine {
         Self {
             grid_width,
             grid_height,
+            grid_spacing,
             particles_count,
             staggered_velocities,
             staggered_weights: Grid::new(grid_width + 1, grid_height + 1),
-            grid_spacing: DEFAULT_GRID_SPACING,
-            projection_iterations: DEFAULT_PROJECTIONS_ITERATIONS,
-            overrelaxation_factor: DEFAULT_OVERRELAXATION_FACTOR,
-            velocity_absorption_factor: DEFAULT_VELOCITY_ABSORPTION_FACTOR,
-            stiffness_factor: DEFAULT_STIFFNESS_FACTOR,
-            pic_factor: DEFAULT_PIC_FACTOR,
-            flip_factor: DEFAULT_FLIP_FACTOR,
+            config,
             grid_state: Self::build_initial_state_grid(grid_width, grid_height),
             engine_output_pool: pool,
         }
@@ -338,7 +325,7 @@ impl SimulationEngine {
 
         // If we hit a solid, some energy is absorbed and the velocity is inverted:
         if let Some(CellState::Solid) | None = self.get_cell_by_position(&out_particle.pos) {
-            let energy_remaining = 1. - self.velocity_absorption_factor;
+            let energy_remaining = 1. - self.config.velocity_absorption_factor;
             out_particle.pos = in_particle.pos;
             out_particle.vel.x *= -energy_remaining;
             out_particle.vel.y *= -energy_remaining;
@@ -491,19 +478,19 @@ impl SimulationEngine {
     /// Applies the projection step of the simulation (i.e - ensuring incompressibility).
     fn apply_projection(&mut self, rest_density: f64, densities: &Grid<f64>) {
         // TODO: Ensure densities has same dimensions as all other grids
-        for _ in 0..self.projection_iterations {
+        for _ in 0..self.config.projection_iterations {
             // Start from 1 to skip left wall, and stop before the right wall:
             for x in 1..(self.grid_width - 1) {
                 // Start from 1 to skip ceiling, and stop before the floor:
                 for y in 1..(self.grid_height - 1) {
                     unsafe {
-                        let divergence = self.overrelaxation_factor
+                        let divergence = self.config.overrelaxation_factor
                             * Self::unchecked_calculate_divergence(
                                 x,
                                 y,
                                 &self.staggered_velocities.1,
                             )
-                            - self.stiffness_factor
+                            - self.config.stiffness_factor
                                 * (densities.get_unchecked(x, y) - rest_density); // Causes more outward push in dense regions
                         let fluid_neighbors = self.count_fluid_neighbors(x, y);
                         let velocity_correction = divergence / fluid_neighbors as f64;
@@ -591,7 +578,7 @@ impl SimulationEngine {
             let pic = post_projection;
             let flip = post_projection - pre_projection;
 
-            particle.vel = pic * self.pic_factor + flip * self.flip_factor;
+            particle.vel = pic * self.config.pic_factor + flip * self.config.flip_factor;
         }
     }
 
