@@ -299,6 +299,41 @@ impl SimulationEngine {
             });
     }
 
+    /// Simulates the 2-D particle's movement in space - applying acceleration and velocity to its velocity
+    /// and position respectively.
+    ///
+    /// If the new position is inside a solid cell, the function moves the particle out of the way.
+    ///
+    /// **Note**: The function assumes `in_particle` was not in a solid cell.
+    fn simulate_particle_movement(
+        &self,
+        dt: &Duration,
+        in_particle: &Particle,
+        out_particle: &mut Particle,
+    ) {
+        let dt_secs = dt.as_secs_f64();
+        out_particle.vel.y = in_particle.vel.y + G * dt_secs;
+        out_particle.vel.x = in_particle.vel.x;
+
+        out_particle.pos.x = in_particle.pos.x + dt_secs * out_particle.vel.x;
+        out_particle.pos.y = in_particle.pos.y + dt_secs * out_particle.vel.y;
+
+        // If we hit a solid, some energy is absorbed and the velocity is inverted:
+        if let Some(CellState::Solid) | None = self.get_cell_by_position(&out_particle.pos) {
+            let energy_remaining = 1. - self.velocity_absorption_factor;
+            out_particle.pos = in_particle.pos;
+            out_particle.vel.x *= -energy_remaining;
+            out_particle.vel.y *= -energy_remaining;
+        }
+    }
+
+    fn get_cell_by_position(&self, pos: &Vector2D<f64>) -> Option<&CellState> {
+        self.grid_state.get(
+            (pos.x / self.grid_spacing) as usize,
+            (pos.y / self.grid_spacing) as usize,
+        )
+    }
+
     /// Transfers the velocity of each particle to the two staggered velocity grids in the engine.
     ///
     /// The velocity magnitude is divided between the edges of the cell the particle is in according to a
@@ -453,41 +488,6 @@ impl SimulationEngine {
                     .x /= weights_sum;
             }
         }
-    }
-
-    /// Simulates the 2-D particle's movement in space - applying acceleration and velocity to its velocity
-    /// and position respectively.
-    ///
-    /// If the new position is inside a solid cell, the function moves the particle out of the way.
-    ///
-    /// **Note**: The function assumes `in_particle` was not in a solid cell.
-    fn simulate_particle_movement(
-        &self,
-        dt: &Duration,
-        in_particle: &Particle,
-        out_particle: &mut Particle,
-    ) {
-        let dt_secs = dt.as_secs_f64();
-        out_particle.vel.y = in_particle.vel.y + G * dt_secs;
-        out_particle.vel.x = in_particle.vel.x;
-
-        out_particle.pos.x = in_particle.pos.x + dt_secs * out_particle.vel.x;
-        out_particle.pos.y = in_particle.pos.y + dt_secs * out_particle.vel.y;
-
-        // If we hit a solid, some energy is absorbed and the velocity is inverted:
-        if let Some(CellState::Solid) | None = self.get_cell_by_position(&out_particle.pos) {
-            let energy_remaining = 1. - self.velocity_absorption_factor;
-            out_particle.pos = in_particle.pos;
-            out_particle.vel.x *= -energy_remaining;
-            out_particle.vel.y *= -energy_remaining;
-        }
-    }
-
-    fn get_cell_by_position(&self, pos: &Vector2D<f64>) -> Option<&CellState> {
-        self.grid_state.get(
-            (pos.x / self.grid_spacing) as usize,
-            (pos.y / self.grid_spacing) as usize,
-        )
     }
 
     /// Applies the projection step of the simulation (i.e - ensuring incompressibility).
