@@ -204,7 +204,7 @@ impl SimulationEngine {
             self.engine_output_pool.get_fish_blocking()
         } else {
             self.engine_output_pool
-                .get_fish_or_init(|| EngineOutput::new(self.particles_count, self.grid_width, self.grid_height))
+                .get_fish_or_init(|| EngineOutput::new(self.grid_spacing, self.particles_count, self.grid_width, self.grid_height))
         }
     }
 
