@@ -45,7 +45,7 @@
 
 use std::{sync::Arc, time::Duration};
 
-use anyhow::{anyhow, ensure};
+use anyhow::{Ok, anyhow, ensure};
 use vector2d::Vector2D;
 
 use crate::backend::{
@@ -245,7 +245,7 @@ impl SimulationEngine {
     /// A new timestep in the simulation based on the previous one and the amount of time that passed between
     /// them. If any error occurred during the computation, it is returned (although it should be pretty unlikely).
     pub fn compute_timestep(
-        &self,
+        &mut self,
         dt: Duration,
         prev_timestep: &EngineOutput,
         wait_for_pool: bool,
@@ -257,14 +257,26 @@ impl SimulationEngine {
 
     /// The actual physics of the engine.
     fn compute_timestep_internal(
-        &self,
+        &mut self,
         dt: Duration,
         prev_timestep: &EngineOutput,
         output_buffer: &mut EngineOutput,
     ) -> anyhow::Result<()> {
-        todo!("Implement actual physics here!")
+        ensure!(
+            output_buffer.grid_width == self.grid_width && output_buffer.grid_height == self.grid_height,
+            format!("Output buffer doesn't have engine's dimensions (output=[{}, {}], engine=[{}, {}])",
+             output_buffer.grid_width, output_buffer.grid_height, self.grid_width, self.grid_height)
+        );
+        
+        self.apply_forces_and_update_state(&dt, prev_timestep, output_buffer);
+        self.transfer_particles_to_grids(&output_buffer.particles);
+        self.apply_projection(prev_timestep.rest_density, &output_buffer.densities);
+        self.transfer_grids_to_particles(&mut output_buffer.particles);
+
+        Ok(())
     }
 
+    /// Applies forces to the particles, moves them, updates the state grid and the densities grid in the output buffer.
     fn apply_forces_and_update_state(
         &mut self,
         dt: &Duration,
