@@ -175,6 +175,21 @@ impl<T> Grid<T> {
                 consumer(value, Self::unflatten_index(flat_index, self.width))
             });
     }
+
+    /// Changes the value in each cell by calling `filler` again and again.
+    pub fn set_all_with<F: FnMut() -> T>(&mut self, filler: F) {
+        self.flat_grid.fill_with(filler);
+    }
+}
+
+impl <T> Grid<T>
+where
+    T: Copy
+{
+    /// Changes the value in each cell to `value`.
+    pub fn set_all(&mut self, value: T) {
+        self.flat_grid.fill(value);
+    }
 }
 
 impl<T> From<Vec<Vec<T>>> for Grid<T> {
