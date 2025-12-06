@@ -116,7 +116,7 @@ pub struct SimulationEngine {
     /// velocities.
     staggered_velocities: (Grid<Vector2D<f64>>, Grid<Vector2D<f64>>),
     /// Staggered grid of velocity weights, calculated from all particles' positions relative to the cell they're in.
-    staggered_weights: Grid<f64>,
+    staggered_weights: Grid<Vector2D<f64>>,
     grid_state: Grid<CellState>, // TODO - move to main backend struct and accept as parameter here, to allow the
     //        adapters to read from the state too, and handle frontend messages somewhere
     //        else.
@@ -344,14 +344,19 @@ impl SimulationEngine {
         self.staggered_velocities.0.set_all_with(Default::default);
 
         for particle in particles.iter() {
-            self.transfer_particle_velocity_to_staggered_grids(particle);
+            self.transfer_particle_velocity_to_staggered_grids(particle, true);
+            self.transfer_particle_velocity_to_staggered_grids(particle, false);
         }
     }
 
-    fn transfer_particle_velocity_to_staggered_grids(&mut self, particle: &Particle) {
-        // Adjust particle position to the staggerd grid (staggered grid is like a normal grid shifted down by half
+    fn transfer_particle_velocity_to_staggered_grids(&mut self, particle: &Particle, is_horizontal: bool) {
+        // Adjust particle position to the staggerd grid (staggered grid is like a normal grid shifted by half
         // a cell, so we need to shift the particle down by half a cell):
-        let staggered_pos = (particle.pos.x, particle.pos.y + self.grid_spacing * 0.5);
+        let staggered_pos = if is_horizontal {
+            (particle.pos.x, particle.pos.y + self.grid_spacing * 0.5)
+        } else {
+            (particle.pos.x + self.grid_spacing * 0.5, particle.pos.y)
+        };
 
         let coords = (
             (staggered_pos.0 / self.grid_spacing) as usize,
@@ -360,14 +365,18 @@ impl SimulationEngine {
 
         // Transfer velocity to the first grid:
         let weights = self.calculate_bilinear_weights(&staggered_pos, &coords);
-        let velocity = particle.vel.length();
-        self.add_weighted_velocity(coords, velocity, weights);
+        let velocity = if is_horizontal {
+            particle.vel.x
+        } else {
+            particle.vel.y
+        };
+        self.add_weighted_velocity(coords, velocity, weights, is_horizontal);
 
         // Scale down the velocities by the sum of weights, and copy to the second grid on the way:
-        self.scale_down_staggered_velocities();
+        self.scale_down_staggered_velocities(is_horizontal);
     }
 
-    fn scale_down_staggered_velocities(&mut self) {
+    fn scale_down_staggered_velocities(&mut self, is_horizontal: bool) {
         for x in 1..(self.grid_width - 1) {
             for y in 1..(self.grid_height - 1) {
                 if !self.is_fluid_cell(x, y) {
@@ -378,7 +387,11 @@ impl SimulationEngine {
                 unsafe {
                     let weights_sum = self.staggered_weights.get_unchecked(x, y);
                     let current_velocity = self.staggered_velocities.0.get_unchecked_mut(x, y);
-                    current_velocity.x /= weights_sum;
+                    if is_horizontal {
+                        current_velocity.x /= weights_sum.x;
+                    } else {
+                        current_velocity.y /= weights_sum.y;
+                    }
 
                     // Copy final result to second velocity grid:
                     self.staggered_velocities.1.get_unchecked_mut(x, y).x = current_velocity.x;
@@ -422,6 +435,7 @@ impl SimulationEngine {
         cell_coords: (usize, usize),
         velocity: f64,
         weights: CellWeights,
+        is_horizontal: bool,
     ) {
         let coords_weights_array = [
             ((cell_coords.0, cell_coords.1 - 1), weights.topleft),
@@ -434,11 +448,16 @@ impl SimulationEngine {
             if self.is_fluid_cell(coords.0, coords.1) {
                 // If is_fluid_cell is true, the coordinates are guaranteed to exist:
                 unsafe {
-                    self.staggered_velocities
+                    let velocity_cell = self.staggered_velocities
                         .0
-                        .get_unchecked_mut(coords.0, coords.1)
-                        .x += velocity * weight;
-                    *self.staggered_weights.get_unchecked_mut(coords.0, coords.1) += weight;
+                        .get_unchecked_mut(coords.0, coords.1);
+                    if is_horizontal {
+                        velocity_cell.x += velocity * weight;
+                        self.staggered_weights.get_unchecked_mut(coords.0, coords.1).x += weight;
+                    } else {
+                        velocity_cell.y += velocity * weight;
+                        self.staggered_weights.get_unchecked_mut(coords.0, coords.1).y += weight;
+                    }
                 }
             }
         }
