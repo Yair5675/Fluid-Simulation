@@ -2,6 +2,8 @@
 
 use vector2d::Vector2D;
 
+use crate::backend::grid::Grid;
+
 /// A simple struct representing a fluid particle, with position and velocity.
 /// 
 /// Note the axes of the particle's position and velocity are in accordance with the staggered
@@ -25,6 +27,8 @@ pub struct EngineOutput {
     pub grid_width: usize,
     pub grid_height: usize,
     pub particles: Vec<Particle>,
+    pub densities: Grid<f64>,
+    pub rest_density: f64,
 }
 
 impl EngineOutput {
@@ -71,6 +75,8 @@ impl EngineOutput {
             grid_width: width,
             grid_height: height,
             particles,
+            densities: Grid::new(width, height),
+            rest_density: (particles_count as f64) / (width * height) as f64
         }
     }
 }
