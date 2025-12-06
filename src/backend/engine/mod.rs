@@ -58,6 +58,7 @@ const DEFAULT_PROJECTIONS_ITERATIONS: usize = 25;
 const DEFAULT_OVERRELAXATION_FACTOR: f64 = 1.9;
 const DEFAULT_VELOCITY_ABSORPTION_FACTOR: f64 = 0.3;
 const DEFAULT_GRID_SPACING: f64 = 1.0;
+const DEFAULT_STIFFNESS_FACTOR: f64 = 1.0;
 
 mod output;
 
@@ -125,6 +126,7 @@ pub struct SimulationEngine {
     projection_iterations: usize,
     overrelaxation_factor: f64,
     velocity_absorption_factor: f64,
+    stiffness_factor: f64,
 }
 
 impl SimulationEngine {
@@ -157,6 +159,7 @@ impl SimulationEngine {
             projection_iterations: DEFAULT_PROJECTIONS_ITERATIONS,
             overrelaxation_factor: DEFAULT_OVERRELAXATION_FACTOR,
             velocity_absorption_factor: DEFAULT_VELOCITY_ABSORPTION_FACTOR,
+            stiffness_factor: DEFAULT_STIFFNESS_FACTOR,
             grid_state: Self::build_initial_state_grid(grid_width, grid_height),
             engine_output_pool: pool,
         }
@@ -439,14 +442,16 @@ impl SimulationEngine {
     }
 
     /// Applies the projection step of the simulation (i.e - ensuring incompressibility).
-    fn apply_projection(&mut self) {
+    fn apply_projection(&mut self, rest_density: f64, densities: &Grid<f64>) { // TODO: Ensure densities has same dimensions as all other grids
         for _ in 0..self.projection_iterations {
             // Start from 1 to skip left wall, and stop before the right wall:
             for x in 1..(self.grid_width - 1) {
                 // Start from 1 to skip ceiling, and stop before the floor:
                 for y in 1..(self.grid_height - 1) {
                     unsafe {
-                        let divergence = self.overrelaxation_factor * Self::unchecked_calculate_divergence(x, y, &self.staggered_velocities.1);
+                        let divergence = self.overrelaxation_factor *
+                            Self::unchecked_calculate_divergence(x, y, &self.staggered_velocities.1)
+                            -self.stiffness_factor * (densities.get_unchecked(x, y) - rest_density); // Causes more outward push in dense regions
                         let fluid_neighbors = self.count_fluid_neighbors(x, y);
                         let velocity_correction = divergence / fluid_neighbors as f64;
                     
