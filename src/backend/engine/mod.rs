@@ -61,6 +61,8 @@ const DEFAULT_OVERRELAXATION_FACTOR: f64 = 1.9;
 const DEFAULT_VELOCITY_ABSORPTION_FACTOR: f64 = 0.3;
 const DEFAULT_GRID_SPACING: f64 = 1.0;
 const DEFAULT_STIFFNESS_FACTOR: f64 = 1.0;
+const DEFAULT_PIC_FACTOR: f64 = 0.1;
+const DEFAULT_FLIP_FACTOR: f64 = 1.0 - DEFAULT_PIC_FACTOR;
 
 mod output;
 
@@ -129,6 +131,8 @@ pub struct SimulationEngine {
     overrelaxation_factor: f64,
     velocity_absorption_factor: f64,
     stiffness_factor: f64,
+    pic_factor: f64,
+    flip_factor: f64,
 }
 
 impl SimulationEngine {
@@ -167,6 +171,8 @@ impl SimulationEngine {
             overrelaxation_factor: DEFAULT_OVERRELAXATION_FACTOR,
             velocity_absorption_factor: DEFAULT_VELOCITY_ABSORPTION_FACTOR,
             stiffness_factor: DEFAULT_STIFFNESS_FACTOR,
+            pic_factor: DEFAULT_PIC_FACTOR,
+            flip_factor: DEFAULT_FLIP_FACTOR,
             grid_state: Self::build_initial_state_grid(grid_width, grid_height),
             engine_output_pool: pool,
         }
@@ -602,6 +608,60 @@ impl SimulationEngine {
             .unwrap_or_default();
 
         left_neighbor + right_neighbor + top_neighbor + bottom_neighbor
+    }
+
+    fn transfer_grids_to_particles(&self, particles: &mut Vec<Particle>) {
+        for particle in particles.iter_mut() {
+            let pre_projection = self.calculate_velocity_from_grid(&self.staggered_velocities.0, &particle.pos);
+            let post_projection = self.calculate_velocity_from_grid(&self.staggered_velocities.1, &particle.pos);
+
+            let pic = post_projection;
+            let flip = post_projection - pre_projection;
+
+            particle.vel = pic * self.pic_factor + flip * self.flip_factor;
+        }
+    }
+
+    fn calculate_velocity_from_grid(&self, staggered_velocities: &Grid<Vector2D<f64>>, pos: &Vector2D<f64>) -> Vector2D<f64> {
+        let coords = (
+            (pos.x / self.grid_spacing) as usize,
+            (pos.y / self.grid_spacing) as usize,
+        );
+        // Topleft, topright, bottomleft, bottomright:
+        let coords = [
+            (coords.0, coords.1),
+            (coords.0 + 1, coords.1),
+            (coords.0, coords.1 + 1),
+            (coords.0 + 1, coords.1 + 1)
+        ];
+        
+        let mut new_velocity = Vector2D::new(0.0, 0.0);
+        let mut weights_sum = Vector2D::new(0.0, 0.0);
+
+        for (x, y) in coords.into_iter() {
+            if self.is_fluid_cell(x, y) {
+                // is_fluid_cell guarantees the cell exists in the grids
+                unsafe {
+                    let weight = self.staggered_weights.get_unchecked(x, y);
+                    let velocity = staggered_velocities.get_unchecked(x, y);
+
+                    new_velocity.x += weight.x * velocity.x;
+                    new_velocity.y += weight.y * velocity.y;
+
+                    weights_sum.x += weight.x;
+                    weights_sum.y += weight.y;
+                }
+            }
+        }
+
+        if weights_sum.x != 0.0 {
+            new_velocity.x /= weights_sum.x;
+        }
+        if weights_sum.y != 0.0 {
+            new_velocity.y /= weights_sum.y;
+        }
+
+        new_velocity
     }
 
     fn do_grid_dimensions_match<C>(&self, grid: &Grid<C>) -> bool {
