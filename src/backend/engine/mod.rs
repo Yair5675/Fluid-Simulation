@@ -45,12 +45,12 @@
 
 use std::{sync::Arc, time::Duration};
 
-use anyhow::{Ok, anyhow, ensure};
+use anyhow::ensure;
 use vector2d::Vector2D;
 
 use crate::backend::{
     engine::output::Particle,
-    grid::{self, Grid},
+    grid::Grid,
     pool::{Fish, Pool},
 };
 
@@ -267,7 +267,7 @@ impl SimulationEngine {
             format!("Output buffer doesn't have engine's dimensions (output=[{}, {}], engine=[{}, {}])",
              output_buffer.grid_width, output_buffer.grid_height, self.grid_width, self.grid_height)
         );
-        
+
         self.apply_forces_and_update_state(&dt, prev_timestep, output_buffer);
         self.transfer_particles_to_grids(&output_buffer.particles);
         self.apply_projection(prev_timestep.rest_density, &output_buffer.densities);
