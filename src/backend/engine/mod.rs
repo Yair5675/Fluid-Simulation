@@ -476,45 +476,6 @@ impl SimulationEngine {
         false
     }
 
-    /// After adding the weighted velocity to each of the cell's edges, the velocities need to be normalized.
-    ///
-    /// This cannot be done in the same step as adding the weighted velocity, since it requires the sum of used
-    /// weights (which is unknown until adding all weights).
-    fn normalize_velocity_edges(&mut self, cell_coords: (usize, usize), weights_sum: f64) {
-        // Upper left:
-        if let Some(&CellState::Water) = self.grid_state.get(cell_coords.0, cell_coords.1 - 1) {
-            unsafe {
-                self.staggered_velocities
-                    .0
-                    .get_unchecked_mut(cell_coords.0, cell_coords.1 - 1)
-                    .x /= weights_sum;
-            }
-        }
-        // Upper right:
-        if let Some(&CellState::Water) = self.grid_state.get(cell_coords.0, cell_coords.1 - 1) {
-            unsafe {
-                self.staggered_velocities
-                    .0
-                    .get_unchecked_mut(cell_coords.0 + 1, cell_coords.1 - 1)
-                    .x /= weights_sum;
-            }
-        }
-
-        // Lower left + right (they access the same coordinates so just combine them):
-        if let Some(&CellState::Water) = self.grid_state.get(cell_coords.0, cell_coords.1) {
-            unsafe {
-                self.staggered_velocities
-                    .0
-                    .get_unchecked_mut(cell_coords.0, cell_coords.1)
-                    .x /= weights_sum;
-                self.staggered_velocities
-                    .0
-                    .get_unchecked_mut(cell_coords.0 + 1, cell_coords.1)
-                    .x /= weights_sum;
-            }
-        }
-    }
-
     /// Applies the projection step of the simulation (i.e - ensuring incompressibility).
     fn apply_projection(&mut self, rest_density: f64, densities: &Grid<f64>) {
         // TODO: Ensure densities has same dimensions as all other grids
