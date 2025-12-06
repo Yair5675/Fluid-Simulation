@@ -251,6 +251,9 @@ impl SimulationEngine {
             }
         });
 
+        // Clear density:
+        output_buffer.densities.set_all_with(Default::default);
+
         prev_timestep
             .particles
             .iter()
@@ -264,6 +267,14 @@ impl SimulationEngine {
                     (out.pos.y / self.grid_spacing) as usize,
                 );
                 self.grid_state.set(coords.0, coords.1, CellState::Water);
+
+                // Add scaled density:
+                output_buffer
+                    .densities
+                    .get_mut(coords.0, coords.1)
+                    .map(|density| {
+                        *density += (self.particles_count as f64).recip();
+                    });
             });
     }
 
