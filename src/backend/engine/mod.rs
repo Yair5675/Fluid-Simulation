@@ -91,6 +91,15 @@ impl CellState {
     }
 }
 
+/// Represents any set of 4 weights of a cell. Honestly it's just a wrapper of 4 floats
+/// that saves documentation.
+struct CellWeights {
+    pub topleft: f64,
+    pub topright: f64,
+    pub bottomleft: f64,
+    pub bottomright: f64,
+}
+
 /// The engine that computes the fluid simulation's
 pub struct SimulationEngine {
     engine_output_pool: Arc<Pool<EngineOutput>>,
@@ -103,6 +112,8 @@ pub struct SimulationEngine {
     /// The first grid will hold the not-yet-incompressible velocities, the second one will hold the already-incompressible
     /// velocities.
     staggered_velocities: (Grid<Vector2D<f64>>, Grid<Vector2D<f64>>),
+    /// Staggered grid of velocity weights, calculated from all particles' positions relative to the cell they're in.
+    staggered_weights: Grid<f64>,
     grid_state: Grid<CellState>, // TODO - move to main backend struct and accept as parameter here, to allow the
     //        adapters to read from the state too, and handle frontend messages somewhere
     //        else.
@@ -141,6 +152,7 @@ impl SimulationEngine {
             grid_height,
             particles_count,
             staggered_velocities,
+            staggered_weights: Grid::new(grid_width + 1, grid_height + 1),
             grid_spacing: DEFAULT_GRID_SPACING,
             projection_iterations: DEFAULT_PROJECTIONS_ITERATIONS,
             overrelaxation_factor: DEFAULT_OVERRELAXATION_FACTOR,
@@ -239,6 +251,139 @@ impl SimulationEngine {
             .for_each(|(in_particle, out)| {
                 self.simulate_particle_movement(dt, in_particle, out);
             });
+    }
+
+    /// Transfers the velocity of each particle to the two staggered velocity grids in the engine.
+    /// 
+    /// The velocity magnitude is divided between the edges of the cell the particle is in according to a
+    /// a bilinear interpolation depending on the particle position's distance from the cell's topleft corner.
+    fn transfer_particles_to_grids(&mut self, particles: &Vec<Particle>) {
+        // Clear staggered weights and velocities:
+        self.staggered_weights.set_all_with(Default::default);
+        self.staggered_velocities.0.set_all_with(Default::default);
+
+        for particle in particles.iter() {
+            self.transfer_particle_velocity_to_staggered_grids(particle);
+        }
+    }
+
+    fn transfer_particle_velocity_to_staggered_grids(&mut self, particle: &Particle) {
+        // Adjust particle position to the staggerd grid (staggered grid is like a normal grid shifted down by half
+        // a cell, so we need to shift the particle down by half a cell):
+        let staggered_pos = (particle.pos.x, particle.pos.y + self.grid_spacing * 0.5);
+
+        let coords = (
+            (staggered_pos.0 / self.grid_spacing) as usize,
+            (staggered_pos.1 / self.grid_spacing) as usize
+        );
+        
+        // Transfer velocity to the first grid:
+        let weights = self.calculate_bilinear_weights(&staggered_pos, &coords);
+        let velocity = particle.vel.length();
+        self.add_weighted_velocity(coords, velocity, weights);
+        
+        // Scale down the velocities by the sum of weights, and copy to the second grid on the way:
+        self.scale_down_staggered_velocities();
+    }
+
+    fn scale_down_staggered_velocities(&mut self) {
+        for x in 1..(self.grid_width - 1) {
+            for y in 1..(self.grid_height - 1) {
+                if !self.is_fluid_cell(x, y) {
+                    continue;
+                }
+
+                // is_fluid_cell guarantees we are in a valid coordinate
+                unsafe {
+                    let weights_sum = self.staggered_weights.get_unchecked(x, y);
+                    let current_velocity = self.staggered_velocities.0.get_unchecked_mut(x, y);
+                    current_velocity.x /= weights_sum;
+
+                    // Copy final result to second velocity grid:
+                    self.staggered_velocities.1.get_unchecked_mut(x, y).x = current_velocity.x;
+                }
+            }
+        }
+    }
+
+    fn calculate_bilinear_weights(&self, staggered_pos: &(f64, f64), coords: &(usize, usize)) -> CellWeights {
+        // Compute scaled deltas once (minor optimization):
+        let scaled_deltas = (
+            (staggered_pos.0 - (coords.0 as f64 * self.grid_spacing)) / self.grid_spacing,
+            (staggered_pos.1 - (coords.1 as f64 * self.grid_spacing)) / self.grid_spacing,
+        );
+
+        CellWeights {
+            topleft: (1.0 - scaled_deltas.0) * (1.0 - scaled_deltas.1),
+            topright: scaled_deltas.0 * (1.0 - scaled_deltas.1),
+            bottomleft: (1.0 - scaled_deltas.0) * scaled_deltas.1,
+            bottomright: scaled_deltas.0 * scaled_deltas.1
+        }
+    }
+
+
+    /// Given a velocity magnitude and a set of weights referring to how the velocity should be spread in a cell,
+    /// the function adds the weighted velocity to the staggered velocity and weight grids.
+    /// 
+    /// The function will only add the weighted velocity to water cells and will skip air/solid cells.
+    /// 
+    /// **NOTE** - The function only affects `self.staggered_velocities.0`.
+    /// 
+    /// # Arguments:
+    /// * `cell_coords` - integer coordinates of the cell the velocity is in.
+    /// * `velocity` - Magnitude of the velocity of some particle in the cell specified.
+    /// * `weights` - A set of 4 weights, determining how much of `velocity` will be transfered to the cell's edges.
+    fn add_weighted_velocity(&mut self, cell_coords: (usize, usize), velocity: f64, weights: CellWeights) {
+        let coords_weights_array = [
+            ((cell_coords.0, cell_coords.1 - 1), weights.topleft),
+            ((cell_coords.0 + 1, cell_coords.1 - 1), weights.topright),
+            ((cell_coords.0, cell_coords.1), weights.bottomleft),
+            ((cell_coords.0 + 1, cell_coords.1), weights.bottomright)
+        ];
+
+        for (coords, weight) in coords_weights_array.into_iter() {
+            if self.is_fluid_cell(coords.0, coords.1) {
+                // If is_fluid_cell is true, the coordinates are guaranteed to exist:
+                unsafe {
+                    self.staggered_velocities.0.get_unchecked_mut(coords.0, coords.1).x += velocity * weight;
+                    *self.staggered_weights.get_unchecked_mut(coords.0, coords.1) += weight;
+                }
+            }
+        }
+    }
+
+    fn is_fluid_cell(&self, x: usize, y: usize) -> bool {
+        if let Some(&CellState::Water) = self.grid_state.get(x, y) {
+            return true;
+        }
+        false
+    }
+
+    /// After adding the weighted velocity to each of the cell's edges, the velocities need to be normalized.
+    /// 
+    /// This cannot be done in the same step as adding the weighted velocity, since it requires the sum of used 
+    /// weights (which is unknown until adding all weights).
+    fn normalize_velocity_edges(&mut self, cell_coords: (usize, usize), weights_sum: f64) {
+        // Upper left:
+        if let Some(&CellState::Water) = self.grid_state.get(cell_coords.0, cell_coords.1 - 1) {
+            unsafe {
+                self.staggered_velocities.0.get_unchecked_mut(cell_coords.0, cell_coords.1 - 1).x /= weights_sum;
+            }
+        }
+        // Upper right:
+        if let Some(&CellState::Water) = self.grid_state.get(cell_coords.0, cell_coords.1 - 1) {
+            unsafe {
+                self.staggered_velocities.0.get_unchecked_mut(cell_coords.0 + 1, cell_coords.1 - 1).x /= weights_sum;
+            }
+        }
+
+        // Lower left + right (they access the same coordinates so just combine them):
+        if let Some(&CellState::Water) = self.grid_state.get(cell_coords.0, cell_coords.1) {
+            unsafe {
+                self.staggered_velocities.0.get_unchecked_mut(cell_coords.0, cell_coords.1).x /= weights_sum;
+                self.staggered_velocities.0.get_unchecked_mut(cell_coords.0 + 1, cell_coords.1).x /= weights_sum;
+            }
+        }
     }
 
     /// Simulates the 2-D particle's movement in space - applying acceleration and velocity to its velocity
