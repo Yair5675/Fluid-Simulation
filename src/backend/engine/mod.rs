@@ -172,7 +172,7 @@ impl SimulationEngine {
         for _ in 0..(grid_height - 2) {
             let mut row = Vec::with_capacity(grid_width);
             row.push(CellState::Solid);
-            row.extend(std::iter::repeat(CellState::Water).take(grid_width - 2));
+            row.extend(std::iter::repeat(CellState::Air).take(grid_width - 2));
             row.push(CellState::Solid);
             grid_state.push(row);
         }
