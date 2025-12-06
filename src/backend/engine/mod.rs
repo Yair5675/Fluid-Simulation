@@ -444,10 +444,10 @@ impl SimulationEngine {
         is_horizontal: bool,
     ) {
         let coords_weights_array = [
-            ((cell_coords.0, cell_coords.1 - 1), weights.topleft),
-            ((cell_coords.0 + 1, cell_coords.1 - 1), weights.topright),
-            ((cell_coords.0, cell_coords.1), weights.bottomleft),
-            ((cell_coords.0 + 1, cell_coords.1), weights.bottomright),
+            ((cell_coords.0, cell_coords.1), weights.topleft),
+            ((cell_coords.0 + 1, cell_coords.1), weights.topright),
+            ((cell_coords.0, cell_coords.1 + 1), weights.bottomleft),
+            ((cell_coords.0 + 1, cell_coords.1 + 1), weights.bottomright),
         ];
 
         for (coords, weight) in coords_weights_array.into_iter() {
