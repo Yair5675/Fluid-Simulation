@@ -89,10 +89,10 @@ impl<T> Grid<T> {
 
     /// Retrieves a reference to the data located at `Grid(x, y)`, without validating
     /// the coordinates are valid.
-    /// 
+    ///
     /// This function is more performant than [Grid::get], but will cause undefined behavior if
     /// the coordinates are out of bounds.
-    /// 
+    ///
     /// # Arguments:
     /// * `x` - Horizontal index in the grid.
     /// * `y` - Vertical index in the grid.
@@ -101,16 +101,17 @@ impl<T> Grid<T> {
     /// A reference to the data at coordinates `x`, `y` in the grid.
     pub unsafe fn get_unchecked(&self, x: usize, y: usize) -> &T {
         unsafe {
-            self.flat_grid.get_unchecked(self.calculate_flat_index(x, y))
+            self.flat_grid
+                .get_unchecked(self.calculate_flat_index(x, y))
         }
     }
 
     /// Retrieves a mutable reference to the data located at `Grid(x, y)`, without validating
     /// the coordinates are valid.
-    /// 
+    ///
     /// This function is more performant than [Grid::get_mut], but will cause undefined behavior if
     /// the coordinates are out of bounds.
-    /// 
+    ///
     /// # Arguments:
     /// * `x` - Horizontal index in the grid.
     /// * `y` - Vertical index in the grid.
@@ -119,9 +120,7 @@ impl<T> Grid<T> {
     /// A mutable reference to the data at coordinates `x`, `y` in the grid.
     pub unsafe fn get_unchecked_mut(&mut self, x: usize, y: usize) -> &mut T {
         let flat_index = self.calculate_flat_index(x, y);
-        unsafe {
-            self.flat_grid.get_unchecked_mut(flat_index)
-        }
+        unsafe { self.flat_grid.get_unchecked_mut(flat_index) }
     }
 
     /// Sets the data located at `Grid(x, y)`.
@@ -142,13 +141,13 @@ impl<T> Grid<T> {
     }
 
     /// Applies a function for each cell in the grid, immutably.
-    /// 
+    ///
     /// # Arguments:
     /// * `consumer` - A consuming function that accepts a reference to some cell in the grid, and the
     ///                cell's coordinates (x, y), and performs some computations with them.
     pub fn for_each<F>(&self, consumer: F)
-    where 
-        F: Fn(&T, (usize, usize)) -> ()
+    where
+        F: Fn(&T, (usize, usize)) -> (),
     {
         self.flat_grid
             .iter()
@@ -159,14 +158,14 @@ impl<T> Grid<T> {
     }
 
     /// Applies a function for each cell in the grid, mutably.
-    /// 
+    ///
     /// # Arguments:
     /// * `consumer` - A consuming function that accepts a mutable reference to some cell in the grid,
     ///                and the cell's coordinates (x, y), and performs some computations with them.
     ///                The passed function may change the cell.
     pub fn for_each_mut<F>(&mut self, consumer: F)
-    where 
-        F: Fn(&mut T, (usize, usize))
+    where
+        F: Fn(&mut T, (usize, usize)),
     {
         self.flat_grid
             .iter_mut()
@@ -182,9 +181,9 @@ impl<T> Grid<T> {
     }
 }
 
-impl <T> Grid<T>
+impl<T> Grid<T>
 where
-    T: Copy
+    T: Copy,
 {
     /// Changes the value in each cell to `value`.
     pub fn set_all(&mut self, value: T) {

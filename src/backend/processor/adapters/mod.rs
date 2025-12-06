@@ -27,7 +27,7 @@ impl SimulationDataAdapter for AdapterFactory {
     }
 
     fn from_simulation_data(
-        simulation_data: crate::ipc::SimulationData
+        simulation_data: crate::ipc::SimulationData,
     ) -> Result<Self, Self::AdapterError> {
         todo!("Delegate call to actual adapters once they are implemented");
     }

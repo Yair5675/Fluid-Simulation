@@ -11,15 +11,15 @@ use crate::backend::processor::adapters::AdapterConfiguration;
 #[derive(Debug, Clone, Copy, Deserialize)]
 pub struct BackendConfiguration {
     /// Maximum size of the pool used by the backend's engine.
-    /// 
+    ///
     /// If None, the pool can be arbitrarily large.
     pub engine_pool_limit: Option<NonZeroUsize>,
 
     /// Maximum size of the pool used by the backend's simulation output processor.
-    /// 
+    ///
     /// If None, the pool can be arbitrarily large.
     pub processor_pool_limit: Option<NonZeroUsize>,
-    
+
     /// Configuration for the specific adapter used in the simulation:
     pub adapter_configuration: AdapterConfiguration,
 }

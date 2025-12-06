@@ -49,7 +49,9 @@ use anyhow::{anyhow, ensure};
 use vector2d::Vector2D;
 
 use crate::backend::{
-    engine::output::Particle, grid::{self, Grid}, pool::{Fish, Pool}
+    engine::output::Particle,
+    grid::{self, Grid},
+    pool::{Fish, Pool},
 };
 
 // TODO: Add to some physics constants file / physics config:
@@ -80,7 +82,7 @@ impl CellState {
     /// Each cell's velocity should be changed differently based on its type.
     /// This function returns a weight between 0.0 and 1.0 that can be multiplied by the velocity correction
     /// to this cell to yield the disered correction.
-    /// 
+    ///
     /// Solid state for example yields a weight of 0.0, because they should not be affected, while water and air
     /// cells yield 1.0.
     pub fn velocity_correction_weight(&self) -> f64 {
@@ -108,7 +110,7 @@ pub struct SimulationEngine {
     /// * One right *before* making the grid incompressible.
     /// * Another right *after* making the grid incompressible.
     /// In the final stage, the engine adds the difference between the grids back to the particle.
-    /// 
+    ///
     /// To avoid making a copy every single timestep, two are saved here, and will be modified over and over.
     /// The first grid will hold the not-yet-incompressible velocities, the second one will hold the already-incompressible
     /// velocities.
@@ -121,7 +123,7 @@ pub struct SimulationEngine {
     // TODO: Put in some kind of configuration in the final version:
     grid_width: usize,
     grid_height: usize,
-    grid_spacing:f64,
+    grid_spacing: f64,
     particles_count: usize,
     projection_iterations: usize,
     overrelaxation_factor: f64,
@@ -143,10 +145,15 @@ impl SimulationEngine {
     ///
     /// # Return Value:
     /// A new `SimulationEngine` object that attempts to fish from the given pool.
-    pub fn new(particles_count: usize, grid_width: usize, grid_height: usize, pool: Arc<Pool<EngineOutput>>) -> Self {
+    pub fn new(
+        particles_count: usize,
+        grid_width: usize,
+        grid_height: usize,
+        pool: Arc<Pool<EngineOutput>>,
+    ) -> Self {
         let staggered_velocities = (
             Grid::new(grid_width + 1, grid_height + 1),
-            Grid::new(grid_width + 1, grid_height + 1)
+            Grid::new(grid_width + 1, grid_height + 1),
         );
 
         Self {
@@ -206,8 +213,14 @@ impl SimulationEngine {
         if wait_for_pool {
             self.engine_output_pool.get_fish_blocking()
         } else {
-            self.engine_output_pool
-                .get_fish_or_init(|| EngineOutput::new(self.grid_spacing, self.particles_count, self.grid_width, self.grid_height))
+            self.engine_output_pool.get_fish_or_init(|| {
+                EngineOutput::new(
+                    self.grid_spacing,
+                    self.particles_count,
+                    self.grid_width,
+                    self.grid_height,
+                )
+            })
         }
     }
 
@@ -246,7 +259,12 @@ impl SimulationEngine {
         todo!("Implement actual physics here!")
     }
 
-    fn apply_forces_and_update_state(&mut self, dt: &Duration, prev_timestep: &EngineOutput, output_buffer: &mut EngineOutput) {
+    fn apply_forces_and_update_state(
+        &mut self,
+        dt: &Duration,
+        prev_timestep: &EngineOutput,
+        output_buffer: &mut EngineOutput,
+    ) {
         // Clear state for any previously-water cell
         self.grid_state.for_each_mut(|state, _| {
             if let &mut CellState::Water = state {
@@ -282,7 +300,7 @@ impl SimulationEngine {
     }
 
     /// Transfers the velocity of each particle to the two staggered velocity grids in the engine.
-    /// 
+    ///
     /// The velocity magnitude is divided between the edges of the cell the particle is in according to a
     /// a bilinear interpolation depending on the particle position's distance from the cell's topleft corner.
     fn transfer_particles_to_grids(&mut self, particles: &Vec<Particle>) {
@@ -302,14 +320,14 @@ impl SimulationEngine {
 
         let coords = (
             (staggered_pos.0 / self.grid_spacing) as usize,
-            (staggered_pos.1 / self.grid_spacing) as usize
+            (staggered_pos.1 / self.grid_spacing) as usize,
         );
-        
+
         // Transfer velocity to the first grid:
         let weights = self.calculate_bilinear_weights(&staggered_pos, &coords);
         let velocity = particle.vel.length();
         self.add_weighted_velocity(coords, velocity, weights);
-        
+
         // Scale down the velocities by the sum of weights, and copy to the second grid on the way:
         self.scale_down_staggered_velocities();
     }
@@ -334,7 +352,11 @@ impl SimulationEngine {
         }
     }
 
-    fn calculate_bilinear_weights(&self, staggered_pos: &(f64, f64), coords: &(usize, usize)) -> CellWeights {
+    fn calculate_bilinear_weights(
+        &self,
+        staggered_pos: &(f64, f64),
+        coords: &(usize, usize),
+    ) -> CellWeights {
         // Compute scaled deltas once (minor optimization):
         let scaled_deltas = (
             (staggered_pos.0 - (coords.0 as f64 * self.grid_spacing)) / self.grid_spacing,
@@ -345,35 +367,42 @@ impl SimulationEngine {
             topleft: (1.0 - scaled_deltas.0) * (1.0 - scaled_deltas.1),
             topright: scaled_deltas.0 * (1.0 - scaled_deltas.1),
             bottomleft: (1.0 - scaled_deltas.0) * scaled_deltas.1,
-            bottomright: scaled_deltas.0 * scaled_deltas.1
+            bottomright: scaled_deltas.0 * scaled_deltas.1,
         }
     }
 
-
     /// Given a velocity magnitude and a set of weights referring to how the velocity should be spread in a cell,
     /// the function adds the weighted velocity to the staggered velocity and weight grids.
-    /// 
+    ///
     /// The function will only add the weighted velocity to water cells and will skip air/solid cells.
-    /// 
+    ///
     /// **NOTE** - The function only affects `self.staggered_velocities.0`.
-    /// 
+    ///
     /// # Arguments:
     /// * `cell_coords` - integer coordinates of the cell the velocity is in.
     /// * `velocity` - Magnitude of the velocity of some particle in the cell specified.
     /// * `weights` - A set of 4 weights, determining how much of `velocity` will be transfered to the cell's edges.
-    fn add_weighted_velocity(&mut self, cell_coords: (usize, usize), velocity: f64, weights: CellWeights) {
+    fn add_weighted_velocity(
+        &mut self,
+        cell_coords: (usize, usize),
+        velocity: f64,
+        weights: CellWeights,
+    ) {
         let coords_weights_array = [
             ((cell_coords.0, cell_coords.1 - 1), weights.topleft),
             ((cell_coords.0 + 1, cell_coords.1 - 1), weights.topright),
             ((cell_coords.0, cell_coords.1), weights.bottomleft),
-            ((cell_coords.0 + 1, cell_coords.1), weights.bottomright)
+            ((cell_coords.0 + 1, cell_coords.1), weights.bottomright),
         ];
 
         for (coords, weight) in coords_weights_array.into_iter() {
             if self.is_fluid_cell(coords.0, coords.1) {
                 // If is_fluid_cell is true, the coordinates are guaranteed to exist:
                 unsafe {
-                    self.staggered_velocities.0.get_unchecked_mut(coords.0, coords.1).x += velocity * weight;
+                    self.staggered_velocities
+                        .0
+                        .get_unchecked_mut(coords.0, coords.1)
+                        .x += velocity * weight;
                     *self.staggered_weights.get_unchecked_mut(coords.0, coords.1) += weight;
                 }
             }
@@ -388,39 +417,56 @@ impl SimulationEngine {
     }
 
     /// After adding the weighted velocity to each of the cell's edges, the velocities need to be normalized.
-    /// 
-    /// This cannot be done in the same step as adding the weighted velocity, since it requires the sum of used 
+    ///
+    /// This cannot be done in the same step as adding the weighted velocity, since it requires the sum of used
     /// weights (which is unknown until adding all weights).
     fn normalize_velocity_edges(&mut self, cell_coords: (usize, usize), weights_sum: f64) {
         // Upper left:
         if let Some(&CellState::Water) = self.grid_state.get(cell_coords.0, cell_coords.1 - 1) {
             unsafe {
-                self.staggered_velocities.0.get_unchecked_mut(cell_coords.0, cell_coords.1 - 1).x /= weights_sum;
+                self.staggered_velocities
+                    .0
+                    .get_unchecked_mut(cell_coords.0, cell_coords.1 - 1)
+                    .x /= weights_sum;
             }
         }
         // Upper right:
         if let Some(&CellState::Water) = self.grid_state.get(cell_coords.0, cell_coords.1 - 1) {
             unsafe {
-                self.staggered_velocities.0.get_unchecked_mut(cell_coords.0 + 1, cell_coords.1 - 1).x /= weights_sum;
+                self.staggered_velocities
+                    .0
+                    .get_unchecked_mut(cell_coords.0 + 1, cell_coords.1 - 1)
+                    .x /= weights_sum;
             }
         }
 
         // Lower left + right (they access the same coordinates so just combine them):
         if let Some(&CellState::Water) = self.grid_state.get(cell_coords.0, cell_coords.1) {
             unsafe {
-                self.staggered_velocities.0.get_unchecked_mut(cell_coords.0, cell_coords.1).x /= weights_sum;
-                self.staggered_velocities.0.get_unchecked_mut(cell_coords.0 + 1, cell_coords.1).x /= weights_sum;
+                self.staggered_velocities
+                    .0
+                    .get_unchecked_mut(cell_coords.0, cell_coords.1)
+                    .x /= weights_sum;
+                self.staggered_velocities
+                    .0
+                    .get_unchecked_mut(cell_coords.0 + 1, cell_coords.1)
+                    .x /= weights_sum;
             }
         }
     }
 
     /// Simulates the 2-D particle's movement in space - applying acceleration and velocity to its velocity
     /// and position respectively.
-    /// 
+    ///
     /// If the new position is inside a solid cell, the function moves the particle out of the way.
-    /// 
+    ///
     /// **Note**: The function assumes `in_particle` was not in a solid cell.
-    fn simulate_particle_movement(&self, dt: &Duration, in_particle: &Particle, out_particle: &mut Particle) {
+    fn simulate_particle_movement(
+        &self,
+        dt: &Duration,
+        in_particle: &Particle,
+        out_particle: &mut Particle,
+    ) {
         let dt_secs = dt.as_secs_f64();
         out_particle.vel.y = in_particle.vel.y + G * dt_secs;
         out_particle.vel.x = in_particle.vel.x;
@@ -438,35 +484,59 @@ impl SimulationEngine {
     }
 
     fn get_cell_by_position(&self, pos: &Vector2D<f64>) -> Option<&CellState> {
-        self.grid_state.get((pos.x / self.grid_spacing) as usize, (pos.y / self.grid_spacing) as usize)
+        self.grid_state.get(
+            (pos.x / self.grid_spacing) as usize,
+            (pos.y / self.grid_spacing) as usize,
+        )
     }
 
     /// Applies the projection step of the simulation (i.e - ensuring incompressibility).
-    fn apply_projection(&mut self, rest_density: f64, densities: &Grid<f64>) { // TODO: Ensure densities has same dimensions as all other grids
+    fn apply_projection(&mut self, rest_density: f64, densities: &Grid<f64>) {
+        // TODO: Ensure densities has same dimensions as all other grids
         for _ in 0..self.projection_iterations {
             // Start from 1 to skip left wall, and stop before the right wall:
             for x in 1..(self.grid_width - 1) {
                 // Start from 1 to skip ceiling, and stop before the floor:
                 for y in 1..(self.grid_height - 1) {
                     unsafe {
-                        let divergence = self.overrelaxation_factor *
-                            Self::unchecked_calculate_divergence(x, y, &self.staggered_velocities.1)
-                            -self.stiffness_factor * (densities.get_unchecked(x, y) - rest_density); // Causes more outward push in dense regions
+                        let divergence = self.overrelaxation_factor
+                            * Self::unchecked_calculate_divergence(
+                                x,
+                                y,
+                                &self.staggered_velocities.1,
+                            )
+                            - self.stiffness_factor
+                                * (densities.get_unchecked(x, y) - rest_density); // Causes more outward push in dense regions
                         let fluid_neighbors = self.count_fluid_neighbors(x, y);
                         let velocity_correction = divergence / fluid_neighbors as f64;
-                    
+
                         // Multiply by state since solid is 0 (and will not affect anything), while fluid is 1:
                         let topleft = self.staggered_velocities.1.get_unchecked_mut(x, y);
-                        topleft.x += velocity_correction * self.grid_state.get_unchecked(x - 1, y).velocity_correction_weight();
-                        topleft.y += velocity_correction * self.grid_state.get_unchecked(x, y - 1).velocity_correction_weight();
+                        topleft.x += velocity_correction
+                            * self
+                                .grid_state
+                                .get_unchecked(x - 1, y)
+                                .velocity_correction_weight();
+                        topleft.y += velocity_correction
+                            * self
+                                .grid_state
+                                .get_unchecked(x, y - 1)
+                                .velocity_correction_weight();
 
                         let bottom = self.staggered_velocities.1.get_unchecked_mut(x, y + 1);
-                        bottom.y += velocity_correction * self.grid_state.get_unchecked(x, y + 1).velocity_correction_weight();
+                        bottom.y += velocity_correction
+                            * self
+                                .grid_state
+                                .get_unchecked(x, y + 1)
+                                .velocity_correction_weight();
 
                         let right = self.staggered_velocities.1.get_unchecked_mut(x + 1, y);
-                        right.x += velocity_correction * self.grid_state.get_unchecked(x + 1, y).velocity_correction_weight();
+                        right.x += velocity_correction
+                            * self
+                                .grid_state
+                                .get_unchecked(x + 1, y)
+                                .velocity_correction_weight();
                     }
-                    
                 }
             }
         }
@@ -520,6 +590,7 @@ impl SimulationEngine {
     }
 
     fn do_staggered_grid_dimensions_match<C>(&self, staggered_grid: &Grid<C>) -> bool {
-        self.grid_width + 1 == staggered_grid.width() && self.grid_height + 1 == staggered_grid.height()
+        self.grid_width + 1 == staggered_grid.width()
+            && self.grid_height + 1 == staggered_grid.height()
     }
 }

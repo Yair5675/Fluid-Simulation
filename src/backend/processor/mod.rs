@@ -43,24 +43,24 @@ pub trait SimulationDataAdapter: Send {
     ) -> Result<SimulationData, Self::AdapterError>;
 
     /// Creates a [`SimulationDataAdapter`] object based on the given `simulation_data` object.
-    /// 
+    ///
     /// The function uses the already allocated memory of `simulation_data` for the new `SimulationDataAdapter`
     /// object to reuse memory where it can.
-    /// 
+    ///
     /// Note that the function should only work for the specific variant of [`SimulationData`] returned by the
     /// [`SimulationDataAdapter::to_simulation_data`] function, to ensure compatible values. If any other variant
     /// is supplied, an error should be returned instead.
-    /// 
+    ///
     /// # Arguments:
     /// * `simulation_data` - The variant of [`SimulationData`] returned by `Self`'s `to_simulation_data` function.
     ///                       Will be used to construct the adapter object and save allocations.
-    /// 
+    ///
     /// # Return Value:
     /// A new `SimulationDataAdapter` object containing the same data as the argument passed to it, or an error if
     /// the conversion failed.
-    fn from_simulation_data(
-        simulation_data: SimulationData
-    ) -> Result<Self, Self::AdapterError> where Self: Sized;
+    fn from_simulation_data(simulation_data: SimulationData) -> Result<Self, Self::AdapterError>
+    where
+        Self: Sized;
 }
 
 /// A backend component responsible for using [`SimulationDataAdapter`] to process the output of the
@@ -81,8 +81,7 @@ pub trait SimulationDataAdapter: Send {
 ///           room for `SimulationData` objects which are valid for the adapter).
 ///           Due to this reason, **never** hand the same pool to two processors with different adapter
 ///           types.
-pub struct SimulationOutputProcessor<A: SimulationDataAdapter>
-{
+pub struct SimulationOutputProcessor<A: SimulationDataAdapter> {
     adapters_pool: Arc<Pool<SimulationData>>,
     adapter_initializer: Box<dyn Fn() -> A>,
 }
@@ -154,7 +153,10 @@ where
     /// # Return Value:
     /// A `SimulationOutputProcessor` whose adapter's type is `NA`, yet uses the same [`Pool`] as the
     /// previous processor.
-    pub fn change_adapter<NA>(self, new_initializer: Box<dyn Fn() -> NA>) -> SimulationOutputProcessor<NA>
+    pub fn change_adapter<NA>(
+        self,
+        new_initializer: Box<dyn Fn() -> NA>,
+    ) -> SimulationOutputProcessor<NA>
     where
         NA: SimulationDataAdapter,
     {

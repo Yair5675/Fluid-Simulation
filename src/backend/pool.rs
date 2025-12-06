@@ -1,6 +1,6 @@
 use std::{
     ops::{Deref, DerefMut},
-    sync::mpsc::{channel, sync_channel, Receiver, SendError, TryRecvError, TrySendError},
+    sync::mpsc::{Receiver, SendError, TryRecvError, TrySendError, channel, sync_channel},
 };
 
 use crate::backend::generic_sender::GenericSender;
@@ -144,37 +144,35 @@ impl<T: Send> Pool<T> {
 
     /// Attempts to populate (add a new value) to the pool without blocking. If the value is added successfully,
     /// every thread with access to this pool will be able to retrieve this value and use it.
-    /// 
+    ///
     /// The function never blocks, and if the pool is full, ownership of `value` is returned through the `Err`
     /// variant of the returned `Result`.
-    /// 
+    ///
     /// # Arguments:
     /// * `value` - The value which will be put into the pool.
-    /// 
+    ///
     /// # Return Value:
     /// An empty `Ok` variant if `value` was successfully inserted into the pool, or an `Err` variant giving
     /// back ownership of `value` if the pool was full.
     pub fn try_populate(&self, value: T) -> Result<(), T> {
-        self.fish_entry
-            .send_async(value)
-            .map_err(|error| {
-                // Ensure invariant and unwrap the TrySendError:
-                match error {
-                    TrySendError::Full(value) => value,
-                    TrySendError::Disconnected(_) => panic!(
-                        "All senders disconnected even though one is saved in the pool itself"
-                    ),
+        self.fish_entry.send_async(value).map_err(|error| {
+            // Ensure invariant and unwrap the TrySendError:
+            match error {
+                TrySendError::Full(value) => value,
+                TrySendError::Disconnected(_) => {
+                    panic!("All senders disconnected even though one is saved in the pool itself")
                 }
-            })
+            }
+        })
     }
 
     /// Populates (adds a new value to) the pool using `value`. The value is guaranteed to be added to the
     /// pool successfully, and other threads holding the pool will be able to use it immediately after its
     /// addition.
-    /// 
+    ///
     /// Note that if the pool was constructed using [`Pool::new_bounded`] and is currently full, the function
     /// will block until space becomes available for the new value to be inserted.
-    /// 
+    ///
     /// # Arguments:
     /// * `value` - The value which will be put into the pool.
     pub fn populate_blocking(&self, value: T) {
