@@ -1,12 +1,15 @@
 //! Handles all logic of the fluid simulation including physics, simulation configuration, etc...
 
-use std::cell::RefCell;
 use self::{
     configuration::BackendConfiguration,
     engine::{EngineOutput, SimulationEngine},
     pool::Pool,
 };
+use crate::backend::generic_sender::GenericSender;
+use crate::backend::pool::Fish;
 use crate::ipc::SimulationData;
+use std::cell::RefCell;
+use std::sync::atomic::Ordering;
 use std::sync::{atomic::AtomicBool, Arc, RwLock};
 
 pub mod configuration;
@@ -65,5 +68,28 @@ impl FluidSimulationBackend {
             engine_pool,
             config.engine,
         )
+    }
+
+    fn run_engine_thread_logic(&self, output_sender: GenericSender<Arc<Fish<EngineOutput>>>) {
+        let mut prev_timestep = Arc::new(self.engine_output_pool.get_fish_blocking());
+
+        while self.is_running.load(Ordering::Relaxed) {
+            let new_timestep = self.engine
+                .borrow_mut()
+                .compute_timestep(self.config.time_between_frames, &prev_timestep, false); // TODO: Configure wait_for_pool later
+
+            // TODO Log errors later
+            if let Ok(new_timestep) = new_timestep {
+                prev_timestep = Arc::new(new_timestep);
+                let send_result = output_sender.send(Arc::clone(&prev_timestep));
+
+                // Send operation can only fail if the sender disconnected. In this case, any results
+                // we will produce won't be sent anywhere, so we should stop wasting CPU on them:
+                if let Err(_) = send_result {
+                    // TODO Log the error
+                    break;
+                }
+            }
+        }
     }
 }
