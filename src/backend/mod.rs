@@ -13,8 +13,8 @@ use self::{
 use crate::ipc::SimulationData;
 use std::cell::RefCell;
 use std::sync::atomic::Ordering;
-use std::sync::mpsc::Receiver;
-use std::sync::{atomic::AtomicBool, Arc, RwLock};
+use std::sync::mpsc::{channel, Receiver};
+use std::sync::{atomic::AtomicBool, Arc, Mutex, RwLock};
 
 pub mod configuration;
 pub mod engine;
@@ -30,12 +30,10 @@ pub struct FluidSimulationBackend {
     config: BackendConfiguration,
     currently_rendering_data: RwLock<Arc<SimulationData>>,
     latest_data: RwLock<Arc<SimulationData>>,
-    // Use RefCell since we have to mutate the engine but need to do so from an immutable reference
+    // Use Mutex since we have to mutate the engine but need to do so from an immutable reference
     // to self
-    engine: RefCell<SimulationEngine>,
-    engine_output_pool: Arc<Pool<EngineOutput>>,
+    engine: Mutex<SimulationEngine>,
     processor: SimulationOutputProcessor<AdapterFactory>,
-    processor_pool: Arc<Pool<SimulationData>>,
 }
 
 impl FluidSimulationBackend {
@@ -67,16 +65,14 @@ impl FluidSimulationBackend {
             config: configuration,
             currently_rendering_data: RwLock::new(Arc::clone(&latest_data)),
             latest_data: RwLock::new(latest_data),
-            engine: RefCell::new(Self::initialize_engine(
+            engine: Mutex::new(Self::initialize_engine(
                 &configuration,
-                Arc::clone(&engine_pool),
+                engine_pool,
             )),
-            engine_output_pool: engine_pool,
             processor: SimulationOutputProcessor::new(
-                Arc::clone(&processor_pool),
+                processor_pool,
                 Box::new(move || AdapterFactory::create(configuration.adapter_configuration)),
             ),
-            processor_pool,
         }
     }
 
@@ -100,10 +96,20 @@ impl FluidSimulationBackend {
     }
 
     fn run_engine_thread_logic(&self, output_sender: GenericSender<Arc<Fish<EngineOutput>>>) {
-        let mut prev_timestep = Arc::new(self.engine_output_pool.get_fish_blocking());
+        let mut engine_lock = match self.engine.lock() {
+            Ok(guard) => guard,
+            Err(poisoned) => {
+                // TODO Log error
+                let lock = poisoned.into_inner();
+                self.engine.clear_poison();
+                lock
+            }
+        };
+        let mut prev_timestep = Arc::new(engine_lock.get_pool().get_fish_blocking());
+
 
         while self.is_running.load(Ordering::Relaxed) {
-            let new_timestep = self.engine.borrow_mut().compute_timestep(
+            let new_timestep = engine_lock.compute_timestep(
                 self.config.time_between_frames,
                 &prev_timestep,
                 false,
