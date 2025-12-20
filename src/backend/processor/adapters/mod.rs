@@ -1,5 +1,7 @@
 //! Module containing implementation of different adapters that can be used in the simulation.
 
+mod raw;
+
 use crate::backend::engine::EngineOutput;
 use crate::backend::pool::Fish;
 use crate::backend::processor::SimulationDataAdapter;
