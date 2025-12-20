@@ -4,7 +4,10 @@ mod raw;
 
 use crate::backend::engine::EngineOutput;
 use crate::backend::pool::Fish;
+pub use crate::backend::processor::adapters::raw::RawOutputAdapter;
 use crate::backend::processor::SimulationDataAdapter;
+use crate::ipc::SimulationData;
+use anyhow::anyhow;
 use serde::Deserialize;
 use std::sync::Arc;
 
@@ -17,22 +20,33 @@ pub enum AdapterConfiguration {}
 /// trait.
 ///
 /// The factory will use the [`AdapterConfiguration`] given to it to create the matching adapter variant.
-pub enum AdapterFactory {}
+pub enum AdapterFactory {
+    RawAdapter(RawOutputAdapter),
+}
 
 impl SimulationDataAdapter for AdapterFactory {
     type AdapterError = anyhow::Error;
 
     fn to_simulation_data(
         self,
-        prev_state: &crate::ipc::SimulationData,
+        prev_state: &SimulationData,
         engine_output: Arc<Fish<EngineOutput>>,
-    ) -> Result<crate::ipc::SimulationData, Self::AdapterError> {
-        todo!("Delegate call to actual adapters once they are implemented");
+    ) -> Result<SimulationData, Self::AdapterError> {
+        match self {
+            AdapterFactory::RawAdapter(adapter) => adapter
+                .to_simulation_data(prev_state, engine_output)
+                .map_err(|_| anyhow!("Impossible - RawAdapter failed")),
+        }
     }
 
     fn from_simulation_data(
-        simulation_data: crate::ipc::SimulationData,
+        simulation_data: SimulationData,
     ) -> Result<Self, Self::AdapterError> {
-        todo!("Delegate call to actual adapters once they are implemented");
+        match simulation_data {
+            SimulationData::EngineOutput(_) => {
+                Ok(AdapterFactory::RawAdapter(RawOutputAdapter))
+            }
+            _ => Err(anyhow!("AdapterFactory doesn't support the given simulation data"))
+        }
     }
 }
