@@ -39,7 +39,7 @@ pub trait SimulationDataAdapter: Send {
     fn to_simulation_data(
         self,
         prev_state: &SimulationData,
-        engine_output: &EngineOutput,
+        engine_output: Arc<Fish<EngineOutput>>,
     ) -> Result<SimulationData, Self::AdapterError>;
 
     /// Creates a [`SimulationDataAdapter`] object based on the given `simulation_data` object.
@@ -133,7 +133,7 @@ where
     pub fn process_engine_output(
         &self,
         prev_state: &SimulationData,
-        engine_output: &EngineOutput,
+        engine_output: Arc<Fish<EngineOutput>>,
     ) -> Result<SimulationData, A::AdapterError> {
         self.get_writeable_adapter()
             .to_simulation_data(prev_state, engine_output)

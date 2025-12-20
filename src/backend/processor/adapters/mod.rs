@@ -1,8 +1,10 @@
 //! Module containing implementation of different adapters that can be used in the simulation.
 
-use serde::Deserialize;
-
+use crate::backend::engine::EngineOutput;
+use crate::backend::pool::Fish;
 use crate::backend::processor::SimulationDataAdapter;
+use serde::Deserialize;
+use std::sync::Arc;
 
 /// An adapter-specific configuration, through which the [`AdapterFactory`] enum will be able to construct
 /// the needed adapter while abstracting which one it provided.
@@ -21,7 +23,7 @@ impl SimulationDataAdapter for AdapterFactory {
     fn to_simulation_data(
         self,
         prev_state: &crate::ipc::SimulationData,
-        engine_output: &crate::backend::engine::EngineOutput,
+        engine_output: Arc<Fish<EngineOutput>>,
     ) -> Result<crate::ipc::SimulationData, Self::AdapterError> {
         todo!("Delegate call to actual adapters once they are implemented");
     }
