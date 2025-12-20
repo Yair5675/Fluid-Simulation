@@ -1,7 +1,7 @@
 //! Defines the configurable attributes of the simulation's backend.
 
 use std::num::NonZeroUsize;
-
+use std::time::Duration;
 use serde::Deserialize;
 
 use crate::backend::{engine::EngineConfiguration, processor::adapters::AdapterConfiguration};
@@ -10,6 +10,9 @@ use crate::backend::{engine::EngineConfiguration, processor::adapters::AdapterCo
 /// its behavior to be changed flexibly.
 #[derive(Debug, Clone, Copy, Deserialize)]
 pub struct BackendConfiguration {
+    /// Physical time between two frames computed in the backend engine:
+    pub time_between_frames: Duration,
+
     /// Number of particles simulated
     pub particles_count: NonZeroUsize,
 
