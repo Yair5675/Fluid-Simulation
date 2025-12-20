@@ -7,6 +7,8 @@ use self::{
 };
 use crate::backend::generic_sender::GenericSender;
 use crate::backend::pool::Fish;
+use crate::backend::processor::adapters::AdapterFactory;
+use crate::backend::processor::SimulationOutputProcessor;
 use crate::ipc::SimulationData;
 use std::cell::RefCell;
 use std::sync::atomic::Ordering;
@@ -29,6 +31,8 @@ pub struct FluidSimulationBackend {
     // to self
     engine: RefCell<SimulationEngine>,
     engine_output_pool: Arc<Pool<EngineOutput>>,
+    processor: SimulationOutputProcessor<AdapterFactory>,
+    processor_pool: Arc<Pool<SimulationData>>,
 }
 
 impl FluidSimulationBackend {
@@ -41,18 +45,33 @@ impl FluidSimulationBackend {
     /// # Return Value:
     /// A new `FluidSimulationBackend`, configured as requested.
     pub fn new(configuration: BackendConfiguration) -> Self {
-        let pool = Arc::new(if let Some(pool_limit) = configuration.engine_pool_limit {
+        let engine_pool = Arc::new(if let Some(pool_limit) = configuration.engine_pool_limit {
             Pool::new_bounded(pool_limit.get())
         } else {
             Pool::new_unbounded()
         });
+        let processor_pool = Arc::new(
+            if let Some(pool_limit) = configuration.processor_pool_limit {
+                Pool::new_bounded(pool_limit.get())
+            } else {
+                Pool::new_unbounded()
+            },
+        );
 
         Self {
             is_running: AtomicBool::new(false),
             config: configuration,
             currently_rendering_data: RwLock::new(Arc::new(SimulationData::Loading)),
-            engine: RefCell::new(Self::initialize_engine(&configuration, Arc::clone(&pool))),
-            engine_output_pool: pool,
+            engine: RefCell::new(Self::initialize_engine(
+                &configuration,
+                Arc::clone(&engine_pool),
+            )),
+            engine_output_pool: engine_pool,
+            processor: SimulationOutputProcessor::new(
+                Arc::clone(&processor_pool),
+                Box::new(move || AdapterFactory::create(configuration.adapter_configuration)),
+            ),
+            processor_pool,
         }
     }
 
@@ -74,9 +93,11 @@ impl FluidSimulationBackend {
         let mut prev_timestep = Arc::new(self.engine_output_pool.get_fish_blocking());
 
         while self.is_running.load(Ordering::Relaxed) {
-            let new_timestep = self.engine
-                .borrow_mut()
-                .compute_timestep(self.config.time_between_frames, &prev_timestep, false); // TODO: Configure wait_for_pool later
+            let new_timestep = self.engine.borrow_mut().compute_timestep(
+                self.config.time_between_frames,
+                &prev_timestep,
+                false,
+            ); // TODO: Configure wait_for_pool later
 
             // TODO Log errors later
             if let Ok(new_timestep) = new_timestep {
