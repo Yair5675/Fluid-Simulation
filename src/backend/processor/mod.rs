@@ -96,6 +96,10 @@ where
             adapter_initializer: initializer,
         }
     }
+    
+    pub fn get_pool(&self) -> Arc<Pool<SimulationData>> {
+        Arc::clone(&self.adapters_pool)
+    }
 
     /// Retrieves a new adapter the caller may write to and/or consume.
     ///
