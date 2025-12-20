@@ -24,6 +24,13 @@ pub enum AdapterFactory {
     RawAdapter(RawOutputAdapter),
 }
 
+impl AdapterFactory {
+    pub fn create(_config: AdapterConfiguration) -> Self {
+        // TODO: Actually use configuration when there's more than one variant
+        AdapterFactory::RawAdapter(RawOutputAdapter)
+    }
+}
+
 impl SimulationDataAdapter for AdapterFactory {
     type AdapterError = anyhow::Error;
 
