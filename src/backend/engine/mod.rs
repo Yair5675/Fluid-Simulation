@@ -115,7 +115,7 @@ pub struct SimulationEngine {
     grid_state: Grid<CellState>, // TODO - move to main backend struct and accept as parameter here, to allow the
     //        adapters to read from the state too, and handle frontend messages somewhere
     //        else.
-    // TODO: Put in some kind of configuration in the final version:
+
     grid_width: usize,
     grid_height: usize,
     grid_spacing: f64,
