@@ -94,6 +94,11 @@ impl FluidSimulationBackend {
         )
     }
 
+    /// Sets a flag that signals any thread in the backend loop to stop
+    pub fn stop_backend_loop(&self) {
+        self.is_running.store(false, Ordering::Relaxed);
+    }
+
     fn run_engine_thread_logic(&self, output_sender: GenericSender<Arc<Fish<EngineOutput>>>) {
         let mut prev_timestep = Arc::new(self.engine_output_pool.get_fish_blocking());
 
