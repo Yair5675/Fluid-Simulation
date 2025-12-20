@@ -165,6 +165,10 @@ impl SimulationEngine {
         }
     }
 
+    pub fn get_pool(&self) -> Arc<Pool<EngineOutput>> {
+        Arc::clone(&self.engine_output_pool)
+    }
+
     fn build_initial_state_grid(grid_width: usize, grid_height: usize) -> Grid<CellState> {
         let mut grid_state = Vec::with_capacity(grid_height);
 
