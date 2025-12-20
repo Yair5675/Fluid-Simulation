@@ -1,12 +1,13 @@
 //! Handles all logic of the fluid simulation including physics, simulation configuration, etc...
 
+use std::cell::RefCell;
 use self::{
     configuration::BackendConfiguration,
     engine::{EngineOutput, SimulationEngine},
     pool::Pool,
 };
 use crate::ipc::SimulationData;
-use std::sync::{Arc, RwLock, atomic::AtomicBool};
+use std::sync::{atomic::AtomicBool, Arc, RwLock};
 
 pub mod configuration;
 pub mod engine;
@@ -21,7 +22,9 @@ pub struct FluidSimulationBackend {
     is_running: AtomicBool,
     config: BackendConfiguration,
     currently_rendering_data: RwLock<Arc<SimulationData>>,
-    engine: SimulationEngine,
+    // Use RefCell since we have to mutate the engine but need to do so from an immutable reference
+    // to self
+    engine: RefCell<SimulationEngine>,
     engine_output_pool: Arc<Pool<EngineOutput>>,
 }
 
@@ -45,7 +48,7 @@ impl FluidSimulationBackend {
             is_running: AtomicBool::new(false),
             config: configuration,
             currently_rendering_data: RwLock::new(Arc::new(SimulationData::Loading)),
-            engine: Self::initialize_engine(&configuration, Arc::clone(&pool)),
+            engine: RefCell::new(Self::initialize_engine(&configuration, Arc::clone(&pool))),
             engine_output_pool: pool,
         }
     }
