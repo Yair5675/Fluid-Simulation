@@ -3,15 +3,17 @@
 use self::{
     configuration::BackendConfiguration,
     engine::{EngineOutput, SimulationEngine},
-    pool::Pool,
+    generic_sender::GenericSender,
+    pool::{Fish, Pool},
+    processor::{
+        adapters::AdapterFactory,
+        SimulationOutputProcessor
+    }
 };
-use crate::backend::generic_sender::GenericSender;
-use crate::backend::pool::Fish;
-use crate::backend::processor::adapters::AdapterFactory;
-use crate::backend::processor::SimulationOutputProcessor;
 use crate::ipc::SimulationData;
 use std::cell::RefCell;
 use std::sync::atomic::Ordering;
+use std::sync::mpsc::Receiver;
 use std::sync::{atomic::AtomicBool, Arc, RwLock};
 
 pub mod configuration;
@@ -110,6 +112,45 @@ impl FluidSimulationBackend {
                     // TODO Log the error
                     break;
                 }
+            }
+        }
+    }
+
+    fn run_processor_thread_logic(&self, output_receiver: Receiver<Arc<Fish<EngineOutput>>>, data_sender: GenericSender<Arc<SimulationData>>) {
+        while self.is_running.load(Ordering::Relaxed) {
+            let output = match output_receiver.recv() {
+                Ok(output) => output,
+                // A RecvError is returned if every sender disconnected. In such case, we will
+                // never receive anything anymore, so we should exit the loop
+                Err(_) => break
+            };
+            let prev_data = self.get_latest_simulation_data();
+            let processed_data = self.processor.process_engine_output(prev_data.as_ref(), output);
+            match processed_data {
+                Ok(data) => {
+                    if let Err(_) = data_sender.send(Arc::new(data)) {
+                        // Like the RecvError, a SendError will be returned only if the sender
+                        // disconnected from its receiver, and we can't send anything anymore
+                        break;
+                    }
+                }
+                Err(_) => {
+                    // TODO Log error
+                }
+            }
+        }
+    }
+
+    fn get_latest_simulation_data(&self) -> Arc<SimulationData> {
+        // TODO When the publishing queue is implemented, read from it. For now, we just have the
+        //   rendered data
+        match self.currently_rendering_data.read() {
+            Ok(data) => Arc::clone(&data),
+            Err(lock_error) => {
+                // TODO Log the lock error later. It indicates a thread panicked while holding a lock
+                let data = lock_error.into_inner();
+                self.currently_rendering_data.clear_poison();
+                Arc::clone(&data)
             }
         }
     }
