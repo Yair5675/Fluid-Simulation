@@ -10,6 +10,19 @@ use crate::backend::{engine::EngineConfiguration, processor::adapters::AdapterCo
 /// its behavior to be changed flexibly.
 #[derive(Debug, Clone, Copy, Deserialize)]
 pub struct BackendConfiguration {
+    /// Number of particles simulated
+    pub particles_count: NonZeroUsize,
+
+    /// Horizontal dimension of the grid used (number of cells in the horizontal dimension)
+    pub grid_width: NonZeroUsize,
+
+    /// Vertical dimension of the grid used (number of cells in the vertical dimension)
+    pub grid_height: NonZeroUsize,
+
+    /// The physical size of each cell's side in the grid (the distance between one cell and
+    /// another)
+    pub grid_spacing: f64,
+
     /// Maximum size of the pool used by the backend's engine.
     ///
     /// If None, the pool can be arbitrarily large.
