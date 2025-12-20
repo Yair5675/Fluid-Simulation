@@ -172,4 +172,27 @@ impl FluidSimulationBackend {
             }
         }
     }
+
+    fn run_publishing_queue_thread_logic(&self, received_data_queue: Receiver<Arc<SimulationData>>) {
+        while self.is_running.load(Ordering::Relaxed) {
+            let latest_data = match received_data_queue.recv() {
+                Ok(data) => data,
+                // A RecvError is returned if every sender disconnected. In such case, we will
+                // never receive anything anymore, so we should exit the loop
+                Err(_) => break,
+            };
+            match self.currently_rendering_data.write() {
+                Ok(mut current_data) => {
+                    *current_data = latest_data;
+                }
+                Err(lock_error) => {
+                    // TODO log the error
+                    // We don't care about the previous latest data so we can just clear the poison
+                    self.currently_rendering_data.clear_poison();
+                    let mut latest_data_lock = lock_error.into_inner();
+                    *latest_data_lock = latest_data;
+                }
+            }
+        }
+    }
 }
