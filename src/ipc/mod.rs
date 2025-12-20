@@ -3,7 +3,10 @@
 //!
 //! This isn't technically an IPC since both run on the same process, but represents the same idea.
 
+use crate::backend::engine::EngineOutput;
 use crate::backend::grid::Grid;
+use crate::backend::pool::Fish;
+use std::sync::Arc;
 
 /// Represents the different types of simulation data which can be sent from the backend to the
 /// frontend.
@@ -12,6 +15,8 @@ pub enum SimulationData {
     Loading,
     /// A grid of pressure values.
     Pressure(Grid<f64>),
+    /// Raw output directly from the backend's engine.
+    EngineOutput(Arc<Fish<EngineOutput>>),
 }
 
 impl Default for SimulationData {
