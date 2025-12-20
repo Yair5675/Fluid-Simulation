@@ -29,6 +29,7 @@ pub struct FluidSimulationBackend {
     is_running: AtomicBool,
     config: BackendConfiguration,
     currently_rendering_data: RwLock<Arc<SimulationData>>,
+    latest_data: RwLock<Arc<SimulationData>>,
     // Use RefCell since we have to mutate the engine but need to do so from an immutable reference
     // to self
     engine: RefCell<SimulationEngine>,
@@ -60,10 +61,12 @@ impl FluidSimulationBackend {
             },
         );
 
+        let latest_data = Arc::new(SimulationData::Loading);
         Self {
             is_running: AtomicBool::new(false),
             config: configuration,
-            currently_rendering_data: RwLock::new(Arc::new(SimulationData::Loading)),
+            currently_rendering_data: RwLock::new(Arc::clone(&latest_data)),
+            latest_data: RwLock::new(latest_data),
             engine: RefCell::new(Self::initialize_engine(
                 &configuration,
                 Arc::clone(&engine_pool),
@@ -128,7 +131,9 @@ impl FluidSimulationBackend {
             let processed_data = self.processor.process_engine_output(prev_data.as_ref(), output);
             match processed_data {
                 Ok(data) => {
-                    if let Err(_) = data_sender.send(Arc::new(data)) {
+                    let data = Arc::new(data);
+                    self.set_data_as_latest(Arc::clone(&data));
+                    if let Err(_) = data_sender.send(data) {
                         // Like the RecvError, a SendError will be returned only if the sender
                         // disconnected from its receiver, and we can't send anything anymore
                         break;
@@ -142,15 +147,28 @@ impl FluidSimulationBackend {
     }
 
     fn get_latest_simulation_data(&self) -> Arc<SimulationData> {
-        // TODO When the publishing queue is implemented, read from it. For now, we just have the
-        //   rendered data
-        match self.currently_rendering_data.read() {
+        match self.latest_data.read() {
             Ok(data) => Arc::clone(&data),
             Err(lock_error) => {
                 // TODO Log the lock error later. It indicates a thread panicked while holding a lock
                 let data = lock_error.into_inner();
-                self.currently_rendering_data.clear_poison();
+                self.latest_data.clear_poison();
                 Arc::clone(&data)
+            }
+        }
+    }
+
+    fn set_data_as_latest(&self, new_latest_data: Arc<SimulationData>) {
+        match self.latest_data.write() {
+            Ok(mut latest_data_lock) => {
+                *latest_data_lock = new_latest_data;
+            }
+            Err(lock_error) => {
+                // TODO log the error
+                // We don't care about the previous latest data so we can just clear the poison
+                self.latest_data.clear_poison();
+                let mut latest_data_lock = lock_error.into_inner();
+                *latest_data_lock = new_latest_data;
             }
         }
     }
